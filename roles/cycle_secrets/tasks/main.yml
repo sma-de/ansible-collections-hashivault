@@ -1,0 +1,15 @@
+---
+
+  - name: normalize secret cycling config
+    smabot.hashivault.normalize_secretcycle_cfg:
+    register: _tmp_normer_res_
+
+  - set_fact:
+      hvault_cycle_secrets_cfg_normed: "{{ _tmp_normer_res_.normalized }}"
+
+
+  - include_tasks: cycle_winadusr/cycl_winadusr_servers.yml
+    loop: "{{ cycle_secrets_cfg_normed.cyclers.winad_user.servers | dict2items() }}"
+    loop_control:
+      loop_var: _winad_svr_iter
+
