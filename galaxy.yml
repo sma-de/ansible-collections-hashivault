@@ -15,7 +15,8 @@ dependencies:
 ##    "other_namespace.collection2": ">=2.0.0,<3.0.0"
   "community.general": "*"    # note: "*" selects the highest version available
   "smabot.base": "*"
-  "smabot.windows": "*"
+##  "smabot.windows": "*"
+  "https://github.com/sma-de/ansible-collections-windows.git": '*'
 
 ##license:
 ##    - "MIT"
