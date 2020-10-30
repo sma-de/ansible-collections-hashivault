@@ -7,9 +7,8 @@ from ansible.errors import AnsibleOptionsError
 ##from ansible.module_utils.six import iteritems, string_types
 
 from ansible_collections.smabot.base.plugins.module_utils.plugins.plugin_base import default_param_value
-from ansible_collections.smabot.base.plugins.module_utils.plugins.config_normalizing.base import ConfigNormalizerBaseMerger, NormalizerBase, NormalizerNamed, DefaultSetterOtherKey
+from ansible_collections.smabot.base.plugins.module_utils.plugins.config_normalizing.base import ConfigNormalizerBaseMerger, NormalizerBase, NormalizerNamed, DefaultSetterConstant, DefaultSetterOtherKey
 
-DefaultSetterConstant, DefaultSetterFmtStrCfg, DefaultSetterFmtStrSubCfg
 from ansible_collections.smabot.base.plugins.module_utils.utils.dicting import SUBDICT_METAKEY_ANY, setdefault_none
 
 from ansible_collections.smabot.base.plugins.module_utils.utils.utils import ansible_assert
@@ -19,14 +18,6 @@ from ansible_collections.smabot.base.plugins.module_utils.utils.utils import ans
 class ConfigRootNormalizer(NormalizerBase):
 
     def __init__(self, pluginref, *args, **kwargs):
-        self._add_defaultsetter(kwargs, 
-           'enable_default_java', DefaultSetterConstant(False)
-        )
-
-        self._add_defaultsetter(kwargs, 
-           'default_java_extra_args', DefaultSetterConstant({})
-        )
-
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
           CyclersNormalizer(pluginref),
@@ -172,6 +163,8 @@ class SecretCyclesInstNormer(NormalizerBase):
         super(SecretCyclesInstNormer, self).__init__(
            pluginref, *args, **kwargs
         )
+
+        self.default_setters['pwlen'] = DefaultSetterConstant(40)
 
     @property
     def config_path(self):

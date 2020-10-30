@@ -1,0 +1,7 @@
+---
+
+dependencies:
+
+  - src: https://github.com/TerryHowe/ansible-modules-hashivault.git
+  ##- src: https://gitserver.sma.de/scm/awx/ansible-mirror-github-terryhowe-hashivault.git
+

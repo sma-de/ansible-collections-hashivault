@@ -13,47 +13,104 @@
            ~ _winad_cycles_iter.value.secret_path.suffix }}
 
 
+    ##
+    ## note: it seems impossible to use stuff from a classical role inside a collection (at least if this role is not inside galaxy and awx is used), I at least tried a lot and nothing worked
+    ##
   - name: read current credentials from hashivault  ==>>  {{ _winad_svr_iter.key }}/{{ _winad_cycles_iter.key }}/{{ _winad_usr_iter.value.name }}
-    hashivault_read: "{{ _tmp_hvault_params }}"
-##      key: last
+    smabot.hashivault_modules.hashivault_read: "{{ _tmp_hvault_params }}"
+    ##terryhowe.hashivault_read: "{{ _tmp_hvault_params }}"
+    ##terryhowe.hashivault.hashivault_read: "{{ _tmp_hvault_params }}"
+    ##terryhowe.ansible-modules-hashivault.hashivault_read: "{{ _tmp_hvault_params }}"
+    ##terryhowe.ansible_modules_hashivault.hashivault_read: "{{ _tmp_hvault_params }}"
     register: _tmp_hvault_cur_secret
 
 
   - name: generate new random password  ==>>  {{ _winad_svr_iter.key }}/{{ _winad_cycles_iter.key }}/{{ _winad_usr_iter.value.name }}
     set_fact:
-      ##_tmp_new_pw: 82koPR7e6W34
-      _tmp_new_pw: "{{ _tmp_hvault_cur_secret.pw }}"
+      _tmp_new_pw: >-
+        {{ lookup('password', 
+             '/dev/null length=' ~ _winad_cycles_iter.value.pwlen )
+        }}
     no_log: true
-
-
-##  - name: set new random password  ==>>  {{ _winad_svr_iter.key }}/{{ _winad_cycles_iter.key }}/{{ _winad_usr_iter.value.name }}
-##    smabot.windows.update_adpw:
-##        ## auth params, principal mandatory but fillable from ansible vars / env
-##        server: "{{ _winad_svr_iter.value.url }}"
-##        domain: "{{ _winad_svr_iter.value.domain }}"
-##        base_dn: "{{ _winad_svr_iter.value.base_dn }}"
-##
-##        auth_user: "{{ _tmp_hvault_cur_secret.usr }}"
-##        auth_pw: "{{ _tmp_hvault_cur_secret.pw }}"
-##        
-##        pw_new: "{{ _tmp_new_pw }}"
-##
-##        ## optional, if unset auth user creds are used
-##        ##user: haha
-##        ##pw_old: foo
 
 
   - set_fact:
       _tmp_hvault_params: >- 
          {{ _tmp_hvault_params | combine({ 
               'data': {
-                'usr': _tmp_hvault_cur_secret.usr,
+                'usr': _tmp_hvault_cur_secret.value.usr,
                 'pw': _tmp_new_pw,
               }
             })
          }}
+    no_log: true
 
 
+    ##
+    ## note: ideally changing the secret in corresponding system and 
+    ##   saving it back would ideally be an atomic operation, but in 
+    ##   reality they are not, so to shield against cases where 
+    ##   updating secret in the system is succesful but writing new 
+    ##   secret back to vault fails for some reason, we will first 
+    ##   write it back to vault and only if this works will try to 
+    ##   change the secret in its system
+    ##
   - name: write back new credentials to hashivault  ==>>  {{ _winad_svr_iter.key }}/{{ _winad_cycles_iter.key }}/{{ _winad_usr_iter.value.name }}
-    hashivault_write: "{{ _tmp_hvault_params }}"
+    smabot.hashivault_modules.hashivault_write: "{{ _tmp_hvault_params }}"
+
+
+  - block:
+
+      - name: set new random password  ==>>  {{ _winad_svr_iter.key }}/{{ _winad_cycles_iter.key }}/{{ _winad_usr_iter.value.name }}
+        smabot.windows.update_adpw:
+            ## auth params, principal mandatory but fillable from ansible vars / env
+            server: "{{ _winad_svr_iter.value.url }}"
+            domain: "{{ _winad_svr_iter.value.domain }}"
+            base_dn: "{{ _winad_svr_iter.value.base_dn }}"
+
+            auth_user: "{{ _tmp_hvault_cur_secret.value.usr }}"
+            auth_pw: "{{ _tmp_hvault_cur_secret.value.pw }}"
+            
+            pw_new: "{{ _tmp_new_pw }}"
+
+            ## optional, if unset auth user creds are used
+            ##user: haha
+            ##pw_old: foo
+
+    rescue:
+
+      ##
+      ## as we write the new secret to vault before we actually change 
+      ## it in its system for safety reasons (see comment above), we 
+      ## must make sure to roll back this change if system update fails 
+      ## for some reason
+      ##
+       
+      - set_fact:
+          _tmp_hvault_params: >- 
+             {{ _tmp_hvault_params | combine({ 
+                  'data': {
+                    'usr': _tmp_hvault_cur_secret.value.usr,
+                    'pw': _tmp_hvault_cur_secret.value.pw,
+                  }
+                })
+             }}
+        no_log: true
+
+
+        ##
+        ## for kv version 2 one could actually simply delete the latest 
+        ## version of a secret instead of creating a new version with 
+        ## the old data, but using this obviously would limit the scope 
+        ## of this role to:
+        ##
+        ##   - only kv2 engines
+        ##   - secrets must at least have two version defined
+        ##
+      - name: updating secret failed, roll back to old secret  ==>>  {{ _winad_svr_iter.key }}/{{ _winad_cycles_iter.key }}/{{ _winad_usr_iter.value.name }}
+        smabot.hashivault_modules.hashivault_write: "{{ _tmp_hvault_params }}"
+
+
+      - ansible.builtin.fail:
+          msg: updating the secret failed
 

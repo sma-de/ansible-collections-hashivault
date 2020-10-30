@@ -1,0 +1,7 @@
+---
+
+  # workaround failing github access with local mirror
+  # the one ansible vault config role, which is great
+  - src: https://github.com/TerryHowe/ansible-modules-hashivault.git
+  ##- src: https://gitserver.sma.de/scm/awx/ansible-mirror-github-terryhowe-hashivault.git
+

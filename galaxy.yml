@@ -15,6 +15,7 @@ dependencies:
 ##    "other_namespace.collection2": ">=2.0.0,<3.0.0"
   "community.general": "*"    # note: "*" selects the highest version available
   "smabot.base": "*"
+  "smabot.hashivault_modules": "*"
 ##  "smabot.windows": "*"
 
 ##license:
