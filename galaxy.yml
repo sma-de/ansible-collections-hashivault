@@ -18,8 +18,8 @@ dependencies:
   "smabot.hashivault_modules": "*"
 ##  "smabot.windows": "*"
 
-##license:
-##    - "MIT"
+license:
+    - "BSD3"
 ##tags:
 ##    - demo
 ##    - collection
