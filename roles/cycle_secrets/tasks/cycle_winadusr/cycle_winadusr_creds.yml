@@ -38,8 +38,8 @@
       _tmp_hvault_params: >- 
          {{ _tmp_hvault_params | combine({ 
               'data': {
-                'usr': _tmp_hvault_cur_secret.value.usr,
-                'pw': _tmp_new_pw,
+                'user': _tmp_hvault_cur_secret.value.usr,
+                'password': _tmp_new_pw,
               }
             })
          }}
@@ -90,8 +90,8 @@
           _tmp_hvault_params: >- 
              {{ _tmp_hvault_params | combine({ 
                   'data': {
-                    'usr': _tmp_hvault_cur_secret.value.usr,
-                    'pw': _tmp_hvault_cur_secret.value.pw,
+                    'user': _tmp_hvault_cur_secret.value.usr,
+                    'password': _tmp_hvault_cur_secret.value.pw,
                   }
                 })
              }}
