@@ -1,0 +1,12 @@
+---
+
+    ##
+    ## note: use different hvault sub paths for private and public key, 
+    ##   which makes it easier to configure different access perms for 
+    ##   each of them
+    ##
+  - set_fact:
+      _tmp_multipath_setup:
+         /private:
+         /public:
+

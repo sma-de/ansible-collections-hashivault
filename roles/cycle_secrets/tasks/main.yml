@@ -7,12 +7,65 @@
   - set_fact:
       hvault_cycle_secrets_cfg_normed: "{{ _tmp_normer_res_.normalized }}"
 
+  - set_fact:
+      _failed_cycles: []
 
-  - include_tasks: cycle_winadusr/cycle_winadusr_servers.yml
+
+  - name: handle windows ad user cred cycles
+    include_tasks: cycle_parentcycle.yml
+    vars:
+      cycle_secrettype: secret_types/win_ad
     loop: >-
       {{ hvault_cycle_secrets_cfg_normed.cyclers.winad_user.servers 
        | dict2items() }}
 
     loop_control:
-      loop_var: _winad_svr_iter
+      loop_var: _secretcycle_parent_iter
+
+
+  - name: handle gitlab user ssh key cycles
+    include_tasks: cycle_parentcycle.yml
+    vars:
+      cycle_secrettype: secret_types/gitlab/ssh/user
+    loop: >-
+      {{ hvault_cycle_secrets_cfg_normed.cyclers.gitlab_ssh_user.servers
+       | dict2items() }}
+
+    loop_control:
+      loop_var: _secretcycle_parent_iter
+
+
+  - name: handle gitlab project deploy ssh key cycles
+    include_tasks: cycle_parentcycle.yml
+    vars:
+      cycle_secrettype: secret_types/gitlab/ssh/users
+    loop: >-
+      {{ hvault_cycle_secrets_cfg_normed.cyclers.get(
+           'gitlab_ssh_deploy', {}
+         ).get('servers', {}) 
+       | dict2items() }}
+
+    loop_control:
+      loop_var: _secretcycle_parent_iter
+
+
+  - name: handle gitlab user tokens cycles
+    include_tasks: cycle_parentcycle.yml
+    vars:
+      cycle_secrettype: secret_types/gitlab/user_tokens
+    loop: >-
+      {{ hvault_cycle_secrets_cfg_normed.cyclers.get(
+           'gitlab_user_token', {}
+         ).get('servers', {}) 
+       | dict2items() }}
+
+    loop_control:
+      loop_var: _secretcycle_parent_iter
+
+
+  - ansible.builtin.assert:
+      that:
+        - not _failed_cycles
+      fail_msg: >-
+        Following secret cycles failed:  {{ _failed_cycles | join(', ') }}
 

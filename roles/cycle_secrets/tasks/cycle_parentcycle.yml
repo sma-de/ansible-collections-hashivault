@@ -1,0 +1,16 @@
+---
+
+  - name: handle server authing
+    include_role: 
+      name: "{{ _secretcycle_parent_iter.value.auth.role }}"
+    vars:
+      server_instance: "{{ _secretcycle_parent_iter.value }}"
+    when: >-
+      _secretcycle_parent_iter.value.get('auth', {}).get('role', None) is truthy
+
+
+  - include_tasks: cycle_the_cycle.yml
+    loop: "{{ _secretcycle_parent_iter.value.cycles | dict2items() }}"
+    loop_control:
+      loop_var: _secretcycle_cycle_iter
+

@@ -3,6 +3,8 @@ from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 
+import re
+
 from ansible.errors import AnsibleOptionsError
 ##from ansible.module_utils.six import iteritems, string_types
 
@@ -32,6 +34,7 @@ class CyclersNormalizer(NormalizerBase):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
           WinAdUserNormalizer(pluginref),
+          GitLabSshKeyUserNormalizer(pluginref),
         ]
 
         super(CyclersNormalizer, self).__init__(
@@ -43,12 +46,29 @@ class CyclersNormalizer(NormalizerBase):
         return ['cyclers']
 
 
+class GitLabSshKeyUserNormalizer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          ServersNormalizer(pluginref, authrole='smabot.gitlab.auth_gitlab'),
+        ]
+
+        super(GitLabSshKeyUserNormalizer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+    @property
+    def config_path(self):
+        return ['gitlab_ssh_user']
+
+
 class WinAdUserNormalizer(NormalizerBase):
 
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
-          WinAdUserServersNormalizer(pluginref),
+          ServersWinAdNormalizer(pluginref),
         ]
 
         super(WinAdUserNormalizer, self).__init__(
@@ -60,36 +80,44 @@ class WinAdUserNormalizer(NormalizerBase):
         return ['winad_user']
 
 
-class WinAdUserServersNormalizer(NormalizerBase):
+class ServersNormalizer(NormalizerBase):
 
-    def __init__(self, pluginref, *args, **kwargs):
+    def __init__(self, pluginref, *args, authrole=None, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
-          WinAdUserSrvInstNormalizer(pluginref),
+          self.cycles_normtype(pluginref),
         ]
 
-        super(WinAdUserServersNormalizer, self).__init__(
+        super(ServersNormalizer, self).__init__(
            pluginref, *args, **kwargs
         )
 
-    @property
-    def config_path(self):
-        return ['servers']
+        self.authrole = authrole
 
-
-class WinAdUserSrvInstNormalizer(NormalizerBase):
-
-    def __init__(self, pluginref, *args, **kwargs):
-        subnorms = kwargs.setdefault('sub_normalizers', [])
-        subnorms += [
-          SecretCyclesNormer(pluginref),
-        ]
-
-        super(WinAdUserSrvInstNormalizer, self).__init__(pluginref, *args, **kwargs)
 
     @property
     def config_path(self):
-        return [SUBDICT_METAKEY_ANY]
+        return ['servers', SUBDICT_METAKEY_ANY]
+
+    @property
+    def cycles_normtype(self):
+        return SecretCyclesNormer
+
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        if self.authrole:
+            setdefault_none(setdefault_none(my_subcfg, 'auth', {}), 
+              'role', self.authrole
+            )
+
+        return my_subcfg
+
+
+class ServersWinAdNormalizer(ServersNormalizer):
+
+    @property
+    def server_inst_type(self):
+        return SecretCyclesWinAdNormer
 
 
     def _create_val_defaulter_fn(self, valname, defcfg):
@@ -132,7 +160,9 @@ class WinAdUserSrvInstNormalizer(NormalizerBase):
                )
             )
 
-        return my_subcfg
+        return super(ServersWinAdNormalizer, self)._handle_specifics_presub(
+          cfg, my_subcfg, cfgpath_abs
+        )
 
 
 class SecretCyclesNormer(NormalizerBase):
@@ -140,36 +170,19 @@ class SecretCyclesNormer(NormalizerBase):
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
-          SecretCyclesInstNormer(pluginref),
+          SecretCyclesSubjectsNormer(pluginref),
         ]
 
         super(SecretCyclesNormer, self).__init__(
            pluginref, *args, **kwargs
         )
 
-    @property
-    def config_path(self):
-        return ['cycles']
-
-
-class SecretCyclesInstNormer(NormalizerBase):
-
-    def __init__(self, pluginref, *args, **kwargs):
-        subnorms = kwargs.setdefault('sub_normalizers', [])
-        subnorms += [
-          SecretCyclesSubjectsNormer(pluginref),
-        ]
-
-        super(SecretCyclesInstNormer, self).__init__(
-           pluginref, *args, **kwargs
-        )
-
         self.default_setters['pwlen'] = DefaultSetterConstant(40)
+        self.default_setters['unset_ok'] = DefaultSetterConstant(False)
 
     @property
     def config_path(self):
-        return [SUBDICT_METAKEY_ANY]
-
+        return ['cycles', SUBDICT_METAKEY_ANY]
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
         sp = setdefault_none(my_subcfg, 'secret_path', {})
@@ -178,36 +191,52 @@ class SecretCyclesInstNormer(NormalizerBase):
         return my_subcfg
 
 
-class SecretCyclesSubjectsNormer(NormalizerBase):
+class SecretCyclesWinAdNormer(SecretCyclesNormer):
 
     def __init__(self, pluginref, *args, **kwargs):
-        subnorms = kwargs.setdefault('sub_normalizers', [])
-        subnorms += [
-          SecretCyclesSubjectInstNormer(pluginref),
-        ]
+        super(SecretCyclesWinAdNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
 
+        self.default_setters['pwlen'] = DefaultSetterConstant(40)
+
+
+class SecretCyclesSubjectsNormer(NormalizerNamed):
+
+    def __init__(self, pluginref, *args, **kwargs):
         super(SecretCyclesSubjectsNormer, self).__init__(
            pluginref, *args, **kwargs
         )
 
     @property
     def config_path(self):
-        return ['subjects']
+        return ['subjects', SUBDICT_METAKEY_ANY]
 
 
-class SecretCyclesSubjectInstNormer(NormalizerNamed):
+    def _subst_vault_path(self, vp, cfg, cfgpath_abs):
+        # we support some special var replacements inside vault paths
 
-    def __init__(self, pluginref, *args, **kwargs):
-        super(SecretCyclesSubjectInstNormer, self).__init__(
-           pluginref, *args, **kwargs
-        )
+        ## handle magic var 'server_id' which is based on the url 
+        ## with some modifications (replacing '.' by '_')
+        server = self.get_parentcfg(cfg, cfgpath_abs, level=4)
+        tmp = server['connection']['host'].replace('.', '_')
 
-        self.default_setters['vault_path'] = DefaultSetterOtherKey('name')
+        vp = re.sub(r'\{\$\s*server_id\s*\$\}', tmp, vp)
+        return vp
 
 
-    @property
-    def config_path(self):
-        return [SUBDICT_METAKEY_ANY]
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        tmp = self.get_parentcfg(cfg, cfgpath_abs, level=2)
+
+        vp = tmp['secret_path']['prefix'] \
+          + (my_subcfg.get('vault_path') or my_subcfg['name']) \
+          + tmp['secret_path']['suffix']
+
+        my_subcfg['vault_path'] = self._subst_vault_path(vp, cfg, cfgpath_abs)
+
+        setdefault_none(my_subcfg, 'unset_ok', tmp['unset_ok'])
+
+        return my_subcfg
 
 
 

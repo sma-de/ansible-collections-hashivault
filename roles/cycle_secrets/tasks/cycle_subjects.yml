@@ -1,0 +1,82 @@
+---
+
+  - set_fact:
+      _tmp_hvault_params:
+        mount_point: >-
+           {{ _secretcycle_cycle_iter.value.secret_mount | default(omit) }}
+        version: >-
+           {{ _secretcycle_cycle_iter.value.engine_version | default(omit) }}
+
+        secret: "{{ _secretcycle_subjects_iter.value.vault_path }}"
+
+      ## used when secret is composed of multiple vault paths, e.g. secret and public ssh keys, the mapping key is always the path suffix
+      _tmp_multipath_setup:
+        "":
+
+
+  - include_tasks: "{{ cycle_secrettype }}/prepare.yml"
+
+  - set_fact:
+      _secret_unset: False
+
+  - include_tasks: read_secret.yml
+    loop: "{{ _tmp_multipath_setup | dict2items() }}"
+    loop_control:
+      loop_var: _multipath_iter
+
+
+  - include_tasks: "{{ cycle_secrettype }}/create_new_secret.yml"
+
+
+    ##
+    ## note: ideally changing the secret in corresponding system and 
+    ##   saving it back would ideally be an atomic operation, but in 
+    ##   reality they are not, so to shield against cases where 
+    ##   updating secret in the system is succesful but writing new 
+    ##   secret back to vault fails for some reason, we will first 
+    ##   write it back to vault and only if this works will try to 
+    ##   change the secret in its system
+    ##
+  - include_tasks: write_secret.yml
+    loop: "{{ _tmp_multipath_setup | dict2items() }}"
+    loop_control:
+      loop_var: _multipath_iter
+
+
+  - block:
+
+      - include_tasks: "{{ cycle_secrettype }}/update_secret_service.yml"
+
+    rescue:
+
+      ##
+      ## as we write the new secret to vault before we actually change 
+      ## it in its system for safety reasons (see comment above), we 
+      ## must make sure to roll back this change if system update fails 
+      ## for some reason
+      ##
+      - block:
+          - include_tasks: "{{ cycle_secrettype }}/rollback_secret.yml"
+
+
+          - include_tasks: write_secret.yml
+            loop: "{{ _tmp_multipath_setup | dict2items() }}"
+            loop_control:
+              loop_var: _multipath_iter
+
+        ## nothing to rollback to if this was the first time the secret was set
+        when: not _secret_unset
+
+
+        ## update: actually, if one secret cycling fail others should still be tried
+##      - ansible.builtin.fail:
+##          msg: updating the secret failed
+
+      - set_fact:
+          _failed_cycles: >-
+             {{ _failed_cycles + [
+               cycle_secrettype ~ '/' ~ _secretcycle_parent_iter.key 
+               ~ '/' ~ _secretcycle_cycle_iter.key ~ '/' 
+               ~ _secretcycle_subjects_iter.value.name
+             ] }}
+

@@ -1,7 +1,0 @@
----
-
-  - include_tasks: cycle_winadusr_cycle.yml
-    loop: "{{ _winad_svr_iter.value.cycles | dict2items() }}"
-    loop_control:
-      loop_var: _winad_cycles_iter
-
