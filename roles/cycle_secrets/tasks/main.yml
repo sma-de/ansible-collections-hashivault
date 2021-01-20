@@ -38,11 +38,9 @@
   - name: handle gitlab project deploy ssh key cycles
     include_tasks: cycle_parentcycle.yml
     vars:
-      cycle_secrettype: secret_types/gitlab/ssh/users
+      cycle_secrettype: secret_types/gitlab/ssh/deploy
     loop: >-
-      {{ hvault_cycle_secrets_cfg_normed.cyclers.get(
-           'gitlab_ssh_deploy', {}
-         ).get('servers', {}) 
+      {{ hvault_cycle_secrets_cfg_normed.cyclers.gitlab_ssh_deploy.servers
        | dict2items() }}
 
     loop_control:

@@ -35,6 +35,7 @@ class CyclersNormalizer(NormalizerBase):
         subnorms += [
           WinAdUserNormalizer(pluginref),
           GitLabSshKeyUserNormalizer(pluginref),
+          GitLabSshKeyDeployNormalizer(pluginref),
         ]
 
         super(CyclersNormalizer, self).__init__(
@@ -46,7 +47,7 @@ class CyclersNormalizer(NormalizerBase):
         return ['cyclers']
 
 
-class GitLabSshKeyUserNormalizer(NormalizerBase):
+class GitLabNormalizerBase(NormalizerBase):
 
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
@@ -54,13 +55,29 @@ class GitLabSshKeyUserNormalizer(NormalizerBase):
           ServersNormalizer(pluginref, authrole='smabot.gitlab.auth_gitlab'),
         ]
 
-        super(GitLabSshKeyUserNormalizer, self).__init__(
+        super(GitLabNormalizerBase, self).__init__(
            pluginref, *args, **kwargs
         )
+
+
+class GitLabSshKeyUserNormalizer(GitLabNormalizerBase):
+
+    def __init__(self, *args, **kwargs):
+        super(GitLabSshKeyUserNormalizer, self).__init__(*args, **kwargs)
 
     @property
     def config_path(self):
         return ['gitlab_ssh_user']
+
+
+class GitLabSshKeyDeployNormalizer(GitLabNormalizerBase):
+
+    def __init__(self, *args, **kwargs):
+        super(GitLabSshKeyDeployNormalizer, self).__init__(*args, **kwargs)
+
+    @property
+    def config_path(self):
+        return ['gitlab_ssh_deploy']
 
 
 class WinAdUserNormalizer(NormalizerBase):
@@ -177,7 +194,6 @@ class SecretCyclesNormer(NormalizerBase):
            pluginref, *args, **kwargs
         )
 
-        self.default_setters['pwlen'] = DefaultSetterConstant(40)
         self.default_setters['unset_ok'] = DefaultSetterConstant(False)
 
     @property
