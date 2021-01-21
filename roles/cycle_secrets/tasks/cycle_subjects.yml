@@ -18,6 +18,8 @@
 
   - set_fact:
       _secret_unset: False
+      _tmp_hvault_cur_secret:
+
 
   - include_tasks: read_secret.yml
     loop: "{{ _tmp_multipath_setup | dict2items() }}"
@@ -46,6 +48,21 @@
   - block:
 
       - include_tasks: "{{ cycle_secrettype }}/update_secret_service.yml"
+
+        ##
+        ## note: it is totally possible, that one of the secrets we 
+        ##   manage is actually the same this role uses for authing 
+        ##   against the server, for that case we support and optional 
+        ##   re-authing
+        ##
+      - name: do a post update reauthing
+        include_role: 
+          name: "{{ _secretcycle_parent_iter.value.auth.role }}"
+        vars:
+          server_instance: "{{ _secretcycle_parent_iter.value }}"
+        when: >-
+          _secretcycle_subjects_iter.value.get('reauth', '') == 'post' 
+          and _secretcycle_parent_iter.value.get('auth', {}).get('role', None) is truthy 
 
     rescue:
 

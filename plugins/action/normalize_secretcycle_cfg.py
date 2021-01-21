@@ -36,6 +36,7 @@ class CyclersNormalizer(NormalizerBase):
           WinAdUserNormalizer(pluginref),
           GitLabSshKeyUserNormalizer(pluginref),
           GitLabSshKeyDeployNormalizer(pluginref),
+          GitLabUsrTokenNormalizer(pluginref),
         ]
 
         super(CyclersNormalizer, self).__init__(
@@ -78,6 +79,16 @@ class GitLabSshKeyDeployNormalizer(GitLabNormalizerBase):
     @property
     def config_path(self):
         return ['gitlab_ssh_deploy']
+
+
+class GitLabUsrTokenNormalizer(GitLabNormalizerBase):
+
+    def __init__(self, *args, **kwargs):
+        super(GitLabUsrTokenNormalizer, self).__init__(*args, **kwargs)
+
+    @property
+    def config_path(self):
+        return ['gitlab_user_token']
 
 
 class WinAdUserNormalizer(NormalizerBase):

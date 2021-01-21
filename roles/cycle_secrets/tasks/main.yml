@@ -30,7 +30,6 @@
     loop: >-
       {{ hvault_cycle_secrets_cfg_normed.cyclers.gitlab_ssh_user.servers
        | dict2items() }}
-
     loop_control:
       loop_var: _secretcycle_parent_iter
 
@@ -42,7 +41,6 @@
     loop: >-
       {{ hvault_cycle_secrets_cfg_normed.cyclers.gitlab_ssh_deploy.servers
        | dict2items() }}
-
     loop_control:
       loop_var: _secretcycle_parent_iter
 
@@ -52,11 +50,8 @@
     vars:
       cycle_secrettype: secret_types/gitlab/user_tokens
     loop: >-
-      {{ hvault_cycle_secrets_cfg_normed.cyclers.get(
-           'gitlab_user_token', {}
-         ).get('servers', {}) 
+      {{ hvault_cycle_secrets_cfg_normed.cyclers.gitlab_user_token.servers
        | dict2items() }}
-
     loop_control:
       loop_var: _secretcycle_parent_iter
 
