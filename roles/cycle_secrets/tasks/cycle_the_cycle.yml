@@ -1,7 +1,9 @@
 ---
 
   - include_tasks: cycle_subjects.yml
-    loop: "{{ _secretcycle_cycle_iter.value.subjects | dict2items() }}"
+    loop: >-
+      {{ _secretcycle_cycle_iter.value.subjects | default({}) 
+       | dict2items() }}
     loop_control:
       loop_var: _secretcycle_subjects_iter
 
