@@ -144,7 +144,7 @@ class ServersNormalizer(NormalizerBase):
 class ServersWinAdNormalizer(ServersNormalizer):
 
     @property
-    def server_inst_type(self):
+    def cycles_normtype(self):
         return SecretCyclesWinAdNormer
 
 
