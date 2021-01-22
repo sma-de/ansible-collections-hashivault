@@ -31,13 +31,13 @@ class SecretCycleCfgFilter(FilterBase):
     def argspec(self):
         tmp = super(SecretCycleCfgFilter, self).argspec
 
-        subspec_inout = {
+        subspec_type = {
           'include': ([list(string_types)], []),
           'exclude': ([list(string_types)], []),
         }
 
         tmp.update({
-          'type': ([collections.abc.Mapping], {}, subspec_inout),
+          'type': ([collections.abc.Mapping], {}, subspec_type),
         })
 
         return tmp

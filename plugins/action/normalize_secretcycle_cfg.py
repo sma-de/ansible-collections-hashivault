@@ -207,6 +207,11 @@ class SecretCyclesNormer(NormalizerBase):
 
         self.default_setters['unset_ok'] = DefaultSetterConstant(False)
 
+
+    @property
+    def allow_unsetting(self):
+        return True
+
     @property
     def config_path(self):
         return ['cycles', SUBDICT_METAKEY_ANY]
