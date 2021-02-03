@@ -53,7 +53,7 @@ class GitLabNormalizerBase(NormalizerBase):
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
-          ServersNormalizer(pluginref, authrole='smabot.gitlab.auth_gitlab'),
+          ServersNormalizer(pluginref, authrole='smabot.git.auth_gitlab'),
         ]
 
         super(GitLabNormalizerBase, self).__init__(
