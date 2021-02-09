@@ -177,6 +177,8 @@ class LookupModule(BaseLookup, hashi_vault.LookupModule):
         for (k,v) in iteritems(conv_table):
             opts[v] = opts.pop(k)
 
+        opts['proxies'] = None
+
         for term in terms:
             # convert our params to upstream params
             tmp = copy.deepcopy(opts)
