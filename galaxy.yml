@@ -16,6 +16,7 @@ dependencies:
   "community.general": "*"    # note: "*" selects the highest version available
   "smabot.base": "*"
 
+## TODO: deps resolution is broken atm, fix it at the time we properly version everything
 ##  "smabot.git": "*"
 ##  "smabot.windows": "*"
 ##  "smabot.hashivault_modules": "*"
