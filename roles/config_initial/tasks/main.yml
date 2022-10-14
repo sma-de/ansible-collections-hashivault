@@ -1,0 +1,25 @@
+---
+
+  ##
+  ## note that while most config stuff can be done on from any
+  ## node using vault rest api's this initial configuration
+  ## must be absolutely done from the same system vault is running
+  ##
+
+  - name: install necessary python packages
+    ansible.builtin.pip:
+      name:
+        - hvac
+      state: present
+
+
+  - name: "initialize hashicorp vault server"
+    smabot.hashivault.config_initializer: >-
+      {{ smabot_hashivault_config_initial_args | default(omit, True) }}
+    register: hashivault_init_state
+    no_log: True
+
+
+##  - debug:
+##      var: hashivault_init_state
+
