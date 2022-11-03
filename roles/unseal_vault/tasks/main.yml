@@ -1,0 +1,41 @@
+---
+
+  ##
+  ## note: can in theory be delegated to localhost (ansible controller,
+  ##   rest api access), but then we now influence here on guaranteeing
+  ##   necessary py modules are installed
+  ##
+
+  - include_tasks: "{{ role_path }}/../config_initial/tasks/prepare_system.yml"
+
+  - name: check if vault is sealed or not
+    terryhowe.hashivault.hashivault_status:
+      url: "{{ smabot_hashivault_unseal_vault_args.server_url }}"
+    register: _tmp_vault_status
+
+
+  - block:
+
+        ##
+        ## note: we naturally use a proper list for master keys, but
+        ##   for some reason upstream modules expect the keys as
+        ##   whitespace separated string here, so we internally join it
+        ##
+      - name: vault is sealed => unseal it
+        terryhowe.hashivault.hashivault_unseal:
+          url: "{{ smabot_hashivault_unseal_vault_args.server_url }}"
+          keys: >-
+            {{ smabot_hashivault_unseal_vault_args.master_keys | join(' ') }}
+
+
+      - set_fact:
+          smabot_base_wait_until_webservice_ready_args:
+            taskname: "assure vault server is properly booted and reachable (timeout: 5min)"
+            config:
+              url: "{{ smabot_hashivault_unseal_vault_args.server_url }}/v1/sys/health"
+
+      - ansible.builtin.include_role:
+          name: smabot.base.wait_until_webservice_ready
+
+    when: _tmp_vault_status.status.sealed
+

@@ -1,0 +1,98 @@
+---
+
+  - set_fact:
+      _vault_env:
+         VAULT_ADDR: >-
+           {{ smabot_hashivault_config_instance_args_normed.server_url }}
+
+
+  - set_fact:
+      _vault_env: >-
+        {{ _vault_env | combine({
+             'VAULT_TOKEN': smabot_hashivault_init_state.key_setup.root_token
+           })
+        }}
+
+    no_log: true
+    when: smabot_hashivault_first_init
+
+
+    ##
+    ## on first time initial setup we use the root token for this
+    ## part for authing, on any later runs we need to login here
+    ## with an existing management user/approle
+    ##
+  - block:
+
+        ##
+        ## optionally assure vault is unsealed before trying to connect
+        ## to it, unfortunately we need the master key(s) for this
+        ##
+      - block:
+
+          - set_fact:
+              smabot_hashivault_unseal_vault_args:
+                server_url: "{{ _vault_env.VAULT_ADDR }}"
+                master_keys: >-
+                  {{ smabot_hashivault_config_instance_args_normed.master_keys }}
+            no_log: true
+
+          - name: assure vault is unsealed
+            ansible.builtin.include_role:
+              name: smabot.hashivault.unseal_vault
+
+        when: smabot_hashivault_config_instance_args_normed.get('master_keys', False)
+
+
+      - include_tasks: get_login_creds.yml
+
+      - include_tasks: login.yml
+
+    when: not smabot_hashivault_first_init
+
+
+  - set_fact:
+      _approle_creds: {}
+
+
+  - block:
+
+      ##
+      ## handle's all the stuff which must be configured so "user login"
+      ## becomes possible like installing policies, enabling auth
+      ## methods, etc.
+      ##
+      - include_tasks: config_pre_login.yml
+
+    environment: "{{ _vault_env }}"
+
+
+    ## login with eventually new created vault manager approle,
+    ## updates _vault_env with new credentials
+  - include_tasks: login.yml
+
+
+  - block:
+
+      ##
+      ## note: we explicitly do this after login with "normal" approle
+      ## creds, this leaves us more leeway for debugging in the case
+      ## that login fails for some reason
+      ##
+      - name: revert / invalidate root token
+        terryhowe.hashivault.hashivault_token_revoke:
+          token: "{{ smabot_hashivault_init_state.key_setup.root_token }}"
+        when: smabot_hashivault_first_init
+
+
+      - include_tasks: config_post_login.yml
+
+    environment: "{{ _vault_env }}"
+
+
+  - set_fact:
+      smabot_hashivault_config_inst_return:
+        credentials:
+          approle: "{{ _approle_creds }}"
+    no_log: true
+

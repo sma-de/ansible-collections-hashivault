@@ -1,0 +1,40 @@
+---
+
+    ## support vars.d dirs
+  - include_role:
+      name: smabot.base.expand_vardirs
+
+
+  - smabot.hashivault.normalize_config_instance_args:
+    register: _tmp_normed_cfg
+    no_log: true
+
+  - set_fact:
+      smabot_hashivault_config_instance_args_normed: "{{ _tmp_normed_cfg.normalized }}"
+    no_log: true
+
+
+  - block:
+
+      - name: assure initial setup done
+        ansible.builtin.include_role:
+          name: smabot.hashivault.config_initial
+        vars:
+          smabot_hashivault_config_initial_args: >-
+            {{ smabot_hashivault_config_instance_args_normed.initial_config }}
+
+    environment:
+      VAULT_ADDR: "http://127.0.0.1:{{ smabot_hashivault_config_instance_args_normed.connection.port }}"
+
+
+    ##
+    ## note: as we will use from here on only the rest api to access
+    ##   the new vault it could run in theory on any machine, no
+    ##   necessary the target, for example on localhost/ansible
+    ##   controller, but then we would have as additional dependency
+    ##   that the controller must all necessary py libs and such
+    ##   preinstalled. because of that we actually still run on
+    ##   target host for now
+    ##
+  - include_tasks: using_restapi.yml
+

@@ -1,0 +1,31 @@
+---
+
+  ## manage generic policies
+  - set_fact:
+      _hvault_pols_init: {}
+ 
+  - include_tasks: handle_policies.yml
+    loop: >-
+      {{ smabot_hashivault_config_instance_args_normed.policies.source_dirs.dirs
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_poldirs
+ 
+
+  ## manage auth methods
+  - include_tasks: handle_auth_methods.yml
+    loop: >-
+      {{ smabot_hashivault_config_instance_args_normed.auth_methods
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_auth_methods
+
+
+  ## manage approlers, but only the ones necessary pre login (vault managers)
+  - include_tasks: handle_approlers.yml
+    loop: >-
+      {{ [smabot_hashivault_config_instance_args_normed.approlers._vaultman] }}
+    loop_control:
+      loop_var: _iter_approlers
+    when: smabot_hashivault_config_instance_args_normed.approlers._vaultman is truthy
+

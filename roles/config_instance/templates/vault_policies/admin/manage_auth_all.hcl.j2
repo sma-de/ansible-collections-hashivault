@@ -1,0 +1,23 @@
+
+##
+## enable and manage authentication methods broadly across vault
+##
+
+## manage auth methods broadly across vault
+path "auth/*"
+{
+  capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+}
+
+## list auth methods
+path "sys/auth"
+{
+  capabilities = ["read", "list"]
+}
+
+## create, update, and delete auth methods
+path "sys/auth/*"
+{
+  capabilities = ["create", "update", "delete", "sudo", "list", "read"]
+}
+

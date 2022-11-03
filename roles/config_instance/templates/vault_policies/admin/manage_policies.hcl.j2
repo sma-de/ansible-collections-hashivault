@@ -1,0 +1,55 @@
+
+##
+## note: the root-base path seems not to need explicit allowance
+##
+##path "sys/"
+##{
+##  capabilities = ["list", "read"]
+##}
+
+
+##
+## important: for any path you want to have access to, you also need to create a read/list "passthrough" section like this here
+##
+##path "sys/policy/"  ## be careful: no trailing slashes (!!), this here fails miserable
+path "sys/policy"
+{
+  capabilities = ["list", "read"]
+}
+
+# create and manage acl policies via api (old path)
+path "sys/policy/*"
+{
+  capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+}
+
+
+##
+## note: "sys/policy" path and "sys/policies/acl" seems to be synonyms,
+##   with the 2nd beeing the newer one and having more optional features
+##   (to pay for), I also think that vault core stuff (UI?) has already
+##   switched to them, in general it depends on the client and which rest
+##   API its uses (e.g. hvac currently still uses old path)
+##
+##     - https://www.vaultproject.io/api/system/policy.html
+##
+##     - https://www.vaultproject.io/api/system/policies.html
+##
+##     - https://discuss.hashicorp.com/t/difference-between-sys-policies-acl-and-sys-policy/2686
+##
+path "sys/policies"
+{
+  capabilities = ["list", "read"]
+}
+
+path "sys/policies/acl"
+{
+  capabilities = ["list", "read"]
+}
+
+# create and manage acl policies via api & ui (new way)
+path "sys/policies/acl/*"
+{
+  capabilities = ["create", "read", "update", "delete", "list", "sudo"]
+}
+

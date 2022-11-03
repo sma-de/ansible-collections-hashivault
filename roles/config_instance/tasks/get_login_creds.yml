@@ -1,0 +1,5 @@
+---
+
+    # TODO: support "plain" method where needed creds are simply passed in from external by config
+  - include_tasks: "get_login_creds_methods/{{ smabot_hashivault_config_instance_args_normed.login.creds.method }}.yml"
+

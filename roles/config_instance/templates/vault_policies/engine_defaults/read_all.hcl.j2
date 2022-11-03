@@ -1,0 +1,22 @@
+
+##path "secrets" {
+##  capabilities = [ "list", "read" ]
+##}
+##
+##path "secrets/*" {
+##  capabilities = [ "list", "read" ]
+##}
+
+##
+## note: I actually never had an issue without the list cap when 
+##   doing standard API stuff, but you need it at least for 
+##   browsing inside the ui
+##
+path "{{ _hvault_semp }}" {
+  capabilities = [ "list", "read" ]
+}
+
+path "{{ _hvault_semp }}/*" {
+  capabilities = [ "list", "read" ]
+}
+

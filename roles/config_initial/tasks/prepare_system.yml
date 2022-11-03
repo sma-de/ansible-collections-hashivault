@@ -1,0 +1,9 @@
+---
+
+    # TODO: the terryhowe hvault modules do not support latest hvac releases atm, so we need to pin an older release here: https://github.com/TerryHowe/ansible-modules-hashivault/issues/419
+  - name: install necessary python packages
+    ansible.builtin.pip:
+      name:
+        - hvac<1.0
+      state: present
+

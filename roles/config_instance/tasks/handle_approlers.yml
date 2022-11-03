@@ -1,0 +1,104 @@
+---
+
+  - set_fact:
+      _cur_roler: "{{ _iter_approlers.config }}"
+
+
+  - set_fact:
+      _cur_roler: >-
+        {{ _cur_roler
+         | combine({
+             'policies': (_hvault_pols_init
+                | smabot.hashivault.finalize_role_policies(
+                    to_merge=[_iter_approlers.policies]
+                  )
+             )
+         })
+        }}
+    when: _iter_approlers.init_policies
+
+
+    ##
+    ## note: for older vault API versions this is simply called
+    ##   policies, while in newer ones it is called "token_policies",
+    ##   it seems to be safe to simply set both to be compatible
+    ##   to both kind of API versions
+    ##
+  - set_fact:
+      _cur_roler: >-
+        {{ _cur_roler
+         | combine({
+             'token_policies': _cur_roler.policies
+         })
+        }}
+
+
+  - name: assure approle is created or deleted
+    terryhowe.hashivault.hashivault_approle_role : "{{ _cur_roler }}"
+
+
+  - name: create a new set of approle credentials
+    block:
+
+      - name: get approle id
+        terryhowe.hashivault.hashivault_approle_role_id:
+          name: "{{ _cur_roler.name }}"
+          mount_point: "{{ _cur_roler.mount_point }}"
+        register: _approle_id
+
+
+      - name: invalidate old approle secret
+        terryhowe.hashivault.hashivault_approle_role_secret:
+          name: "{{ _cur_roler.name }}"
+          mount_point: "{{ _cur_roler.mount_point }}"
+          secret: "{{ _approle_creds.get(_cur_roler.name).secret }}"
+          state: absent
+        register: _approle_id_secret
+        ##no_log: "{{ not (disable_secret_log_hiding | default(false, True)) }}"
+        changed_when: False  # this is an ever-changed while we prefer in such cases a never-changed
+        when: _approle_creds.get(_cur_roler.name, False)
+
+
+      - name: get new approle secret
+        terryhowe.hashivault.hashivault_approle_role_secret:
+          name: "{{ _cur_roler.name }}"
+          mount_point: "{{ _cur_roler.mount_point }}"
+          state: present
+        register: _approle_id_secret
+        no_log: "{{ not (disable_secret_log_hiding | default(false, True)) }}"
+        changed_when: False  # this is an ever-changed while we prefer in such cases a never-changed
+
+
+      - set_fact:
+          _approle_creds: >-
+             {{ _approle_creds | combine({_cur_roler.name: {
+                   'id': _approle_id.id,
+                   'secret': _approle_id_secret.data.secret_id,
+                   'login_mount': _cur_roler.mount_point,
+                }})
+             }}
+        no_log: true
+
+      - set_fact:
+           _vaultman_creds: "{{ _approle_creds.get(_cur_roler.name) }}"
+        when: _iter_approlers.vault_manager
+        no_log: true
+
+
+      - block:
+
+          - set_fact:
+              smabot_upload_creds:
+                creds: "{{ _approle_creds.get(_cur_roler.name) }}"
+                type: approle
+                name: "{{ _cur_roler.name }}"
+            no_log: true
+
+            ## optionally write/post updated credential to a backend service
+          - include_tasks: "cred_update_methods/{{ _iter_approlers.update_creds.method }}.yml"
+
+        when: _iter_approlers.update_creds.method is truthy
+
+
+    when: _iter_approlers.update_creds.enabled and _cur_roler.state == 'present'
+

@@ -6,20 +6,21 @@
   ## must be absolutely done from the same system vault is running
   ##
 
-  - name: install necessary python packages
-    ansible.builtin.pip:
-      name:
-        - hvac
-      state: present
-
+  - include_tasks: prepare_system.yml
 
   - name: "initialize hashicorp vault server"
     smabot.hashivault.config_initializer: >-
       {{ smabot_hashivault_config_initial_args | default(omit, True) }}
-    register: hashivault_init_state
-    no_log: True
+    register: smabot_hashivault_init_state
+    no_log: true
 
 
 ##  - debug:
 ##      var: hashivault_init_state
+
+
+  - set_fact:
+      smabot_hashivault_first_init: >-
+        {{ smabot_hashivault_init_state.get('key_setup', {}).get('root_token', None)
+         | smabot.base.to_bool }}
 

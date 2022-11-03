@@ -1,0 +1,22 @@
+
+path "sys/auth" {
+  capabilities = [ "list", "read" ]
+}
+
+# mount the approle auth method
+path "sys/auth/{{ _hvault_authmp }}" {
+  capabilities = [ "create", "read", "update", "delete", "sudo" ]
+}
+
+
+# configure the approle auth method
+path "sys/auth/{{ _hvault_authmp }}/*" {
+  capabilities = [ "create", "read", "update", "delete", "sudo" ]
+}
+
+
+# create and manage roles
+path "auth/{{ _hvault_authmp }}/*" {
+  capabilities = [ "create", "read", "update", "delete", "list" ]
+}
+

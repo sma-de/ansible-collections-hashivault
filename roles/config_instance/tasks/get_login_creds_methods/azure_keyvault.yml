@@ -1,0 +1,37 @@
+---
+
+  - set_fact:
+      smabot_azure_keyvault_secrets_args: >-
+        {{ smabot_hashivault_config_instance_args_normed.login.creds.params }}
+
+  - name: get login creds from azure keyvault
+    ansible.builtin.include_role:
+      name: smabot.azure.readwrite_keyvault_secrets
+
+
+##  - debug:
+##      var: smabot_azure_read_secrets
+
+
+    # TODO: support other auth types besides approle???
+  - set_fact:
+      _vaultman_creds:
+         id: >-
+           {{ smabot_azure_read_secrets.secrets[
+                smabot_azure_keyvault_secrets_args.get_secrets.secrets.id.name
+              ]
+           }}
+
+         secret: >-
+           {{ smabot_azure_read_secrets.secrets[
+                smabot_azure_keyvault_secrets_args.get_secrets.secrets.secret.name
+              ]
+           }}
+
+         login_mount: >-
+           {{ smabot_azure_read_secrets.secrets[
+                smabot_azure_keyvault_secrets_args.get_secrets.secrets.login_mount.name
+              ]
+           }}
+    no_log: true
+

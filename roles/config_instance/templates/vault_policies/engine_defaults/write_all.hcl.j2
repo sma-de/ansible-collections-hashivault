@@ -1,0 +1,18 @@
+
+# TODO: unify as base template with read all
+##path "secrets" {
+##  capabilities = [ "list", "read" ]
+##}
+##
+##path "secrets/*" {
+##  capabilities = [ "list", "read" ]
+##}
+
+path "{{ _hvault_semp }}" {
+  capabilities = [ "list", "create", "read", "update", "delete" ]
+}
+
+path "{{ _hvault_semp }}/*" {
+  capabilities = [ "list", "create", "read", "update", "delete" ]
+}
+

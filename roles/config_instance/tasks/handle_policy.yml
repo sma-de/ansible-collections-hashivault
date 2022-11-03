@@ -1,0 +1,32 @@
+---
+
+  - set_fact:
+      _cur_pol: >-
+        {{ _iter_policies.config
+         | combine({
+             'rules': lookup('template', _iter_policies.config.rules)
+         })
+        }}
+
+
+  - set_fact:
+      _cur_pol: >-
+        {{ _cur_pol
+         | combine({
+             'name': _smabot_hvault_polname_prefix ~ _cur_pol.name,
+         })
+        }}
+    when: >-
+      _smabot_hvault_polname_prefix is defined
+      and _smabot_hvault_polname_prefix is truthy
+
+
+  - name: (de)-install vault policies
+    terryhowe.hashivault.hashivault_policy: "{{ _cur_pol }}"
+
+
+  - set_fact:
+      _hvault_pols_init: >-
+        {{  _hvault_pols_init | combine({_cur_pol.name: None}) }}
+    when: _iter_policies.tags.init_pol is defined
+

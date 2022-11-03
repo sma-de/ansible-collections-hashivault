@@ -1,0 +1,19 @@
+---
+
+  ## manage all approlers
+  - include_tasks: handle_approlers.yml
+    loop: >-
+      {{ smabot_hashivault_config_instance_args_normed.approlers.approlers
+       | dict2items | map(attribute="value") }}
+    loop_control:
+      loop_var: _iter_approlers
+
+
+  ## manage secret engines
+  - include_tasks: handle_secret_engines.yml
+    loop: >-
+      {{ smabot_hashivault_config_instance_args_normed.secret_engines.engines
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_sengines
+

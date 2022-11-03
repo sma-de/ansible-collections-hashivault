@@ -1,0 +1,28 @@
+---
+
+  - block:
+
+      - set_fact:
+          ##_hvault_authmp: "{{ _iter_auth_methods.value.config.mount_point[:-1] }}"
+          _hvault_authmp: "{{ _iter_auth_methods.value.config.mount_point }}"
+
+      - set_fact:
+          _cur_pol: >-
+            {{ _iter_auth_methods.value.policy
+             | combine({'rules': lookup('template',
+               _iter_auth_methods.value.policy.rules) })
+            }}
+
+
+      - name: add / remove method specific management policy
+        terryhowe.hashivault.hashivault_policy: "{{ _cur_pol }}"
+
+    when: _iter_auth_methods.value.policy is truthy
+
+##  - debug:
+##      msg: "da cfg: {{ _iter_auth_methods.value.config }}"
+
+  - name: enable or disable auth method
+    terryhowe.hashivault.hashivault_auth_method: >-
+      {{ _iter_auth_methods.value.config }}
+
