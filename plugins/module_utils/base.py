@@ -54,10 +54,9 @@ def _mandatory_param(val, pname, errmsg=None):
 
 
 
-def fb_verify(env_var_list):
-    for x in env_var_list:
-        if x in os.environ:
-            return not boolean(os.environ[x])
+def fb_verify(evar):
+    if evar in os.environ:
+        return not boolean(os.environ[evar])
 
     return True
 
@@ -99,7 +98,7 @@ class HashiVaultBase(abc.ABC):
         return '{scheme}://{host}:{port}'.format(**self.connection)
 
 
-    def prepare_connection(self, raw_param_con, pretoken):
+    def prepare_connection(self, raw_param_con, pretoken, ssl_verify):
         if not isinstance(raw_param_con, collections.abc.Mapping):
             ## assume complete url string, split it into components
             tmp = urlparse(raw_param_con)
@@ -108,11 +107,14 @@ class HashiVaultBase(abc.ABC):
               'scheme': tmp.scheme,
               'host': tmp.hostname,
               'port': tmp.port,
+              'ssl_verify': ssl_verify,
             }
 
         raw_param_con.setdefault('scheme', 'https')
         raw_param_con.setdefault('host', '127.0.0.1')
         raw_param_con.setdefault('port', 8200)
+        raw_param_con.setdefault('ssl_verify', True)
+
         self.connection = raw_param_con
         self._pretoken = pretoken
 
@@ -124,7 +126,9 @@ class HashiVaultBase(abc.ABC):
 
         # standard pretext, connect and auth
         import hvac
-        c = hvac.Client(url=self.server_url)
+        c = hvac.Client(url=self.server_url,
+          verify=self.connection['ssl_verify']
+        )
 
         if self.expect_authing or forced_token:
             c.token = forced_token or self.auth_token
@@ -164,7 +168,7 @@ class HashiVaultBaseModule(AnsibleModule, HashiVaultBase):
 
     def run(self, result):
         self.prepare_connection(self.params['url'],
-          self.params['token']
+          self.params['token'], self.params['verify']
         )
 
         try:

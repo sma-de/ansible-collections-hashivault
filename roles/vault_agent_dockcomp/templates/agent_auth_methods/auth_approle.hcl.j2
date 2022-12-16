@@ -10,8 +10,7 @@ auto_auth {
     config = {
       role_id_file_path = "{{ VAULTCFG_TEMPLATE_VARS.ROLE_ID_FILE }}"
       secret_id_file_path = "{{ VAULTCFG_TEMPLATE_VARS.SECRET_ID_FILE }}"
-      ##remove_secret_id_file_after_reading = true
-      remove_secret_id_file_after_reading = false
+      remove_secret_id_file_after_reading = true
     }
   }
 }

@@ -34,6 +34,7 @@ class ConfigRootNormalizer(NormalizerBase):
 
           ## depends on compose agentcfg normer run
           ComposeAllVolumesNormer(pluginref),
+          ComposeEnvNormer(pluginref),
         ]
 
         super(ConfigRootNormalizer, self).__init__(pluginref, *args, **kwargs)
@@ -504,6 +505,20 @@ class ComposeAllVolumesNormer(NormalizerBase):
         }
 
         return my_subcfg
+
+
+class ComposeEnvNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(ComposeEnvNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['settings'] = DefaultSetterConstant({})
+
+    @property
+    def config_path(self):
+        return ['compose', 'environment']
 
 
 class ComposeVolInstNormer(NormalizerNamed):

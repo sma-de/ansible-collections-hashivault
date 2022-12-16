@@ -37,13 +37,22 @@
          }}
 
 
-  - block:
+  - name: default target file mode from source file
+    ansible.builtin.stat:
+      path: "{{ _tmp_modcfg.src }}"
+    register: _tmp_src_stats
+    delegate_to: localhost
 
-      - name: default target file mode from source file
-        ansible.builtin.stat:
-          path: "{{ _tmp_modcfg.src }}"
-        register: _tmp_src_stats
-        delegate_to: localhost
+
+  - ansible.builtin.assert:
+      that:
+        - _tmp_src_stats.stat.exists
+      fail_msg: >-
+        source file to template given with path '{{ _tmp_modcfg.src }}'
+        seems not to exist on ansible controller
+
+
+  - block:
 
       - set_fact:
           _tmp_modcfg: >-

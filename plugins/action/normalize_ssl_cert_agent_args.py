@@ -116,6 +116,7 @@ class CertsInstNormer(NormalizerNamed):
         subnorms += [
           CertsInstOptsNormer(pluginref),
           CertsInstTargetPathsNormer(pluginref),
+          CertsCustomPostScriptInstNormer(pluginref),
         ]
 
         super(CertsInstNormer, self).__init__(
@@ -132,6 +133,12 @@ class CertsInstNormer(NormalizerNamed):
         pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=3)
         token = None
 
+        login_args = self.pluginref.get_ansible_var(
+          'smabot_hashivault_login_args'
+        )
+
+        ssl_verify = login_args.get('connection', {}).get('validate_certs', True)
+
         ## default role name
         if not my_subcfg.get('role_name', None):
             if not token:
@@ -147,6 +154,7 @@ class CertsInstNormer(NormalizerNamed):
                  'token': token,
                  'url': pcfg['server_url'],
                  'mount_point': my_subcfg['mount_point'],
+                 'verify': ssl_verify,
                }
             )
 
@@ -177,6 +185,7 @@ class CertsInstNormer(NormalizerNamed):
                  'url': pcfg['server_url'],
                  'mount_point': my_subcfg['mount_point'],
                  'name': my_subcfg['role_name'],
+                 'verify': ssl_verify,
                }
             )
 
@@ -252,21 +261,42 @@ class CertsInstNormer(NormalizerNamed):
 
         ## note: technically neither a hcl nor a direct agent cfgfile
         ##   but can be templated convienently with the same mechanism
-        tmp = "{}/templates/exec_scripts/split_cert_super_pem.sh.j2".format(my_rolepath)
+        tmp = "{}/templates/exec_scripts/certs_post_handling.sh.j2".format(my_rolepath)
 
-        target_relpath = 'exec_scripts/split_cert_super_pem.sh'
+        target_relpath = 'exec_scripts/certs_post_handling.sh'
+        subscripts_basedir = "cert_handling_post.d"
 
         ctmpls[files_id + '_exec_script'] = {
           'src': tmp,
           'target_dir': os.path.dirname(target_relpath),
           'target_name': os.path.basename(target_relpath),
+          'config': {
+            'mode': "770",
+          },
           'template_vars': {
              'FILEPATH_PRIVATE_KEY': my_subcfg['target_paths']['private_key'],
              'FILEPATH_CERT_ONLY': my_subcfg['target_paths']['only_cert'],
              'FILEPATH_CERT_CHAINED': my_subcfg['target_paths']['cert_chained'],
              'FILEPATH_CA_CHAIN': my_subcfg['target_paths']['ca_chain'],
+             'SUBSCRIPTS_DIR': subscripts_basedir,
           }
         }
+
+        ## optionally handle custom user post handling subscripts
+        subscripts_basedir = os.path.dirname(target_relpath) + '/' + subscripts_basedir
+
+        for k,v in my_subcfg['post_template_scripts']['scripts'].items():
+            tmp = os.path.splitext(os.path.basename(v['srcpath']))
+
+            ctmpls[files_id + 'custom_subscript' + tmp[0]] = {
+              'src': v['srcpath'],
+              'target_dir': subscripts_basedir,
+              'target_name': tmp[0],
+              'config': {
+                'mode': "770",
+              },
+              'template_vars': v['template_vars'],
+            }
 
         tmp = "{}/templates/ssl_template_stanza.hcl.j2".format(my_rolepath)
 
@@ -335,6 +365,24 @@ class CertsInstTargetPathsNormer(NormalizerBase):
             }
 
         return my_subcfg
+
+
+class CertsCustomPostScriptInstNormer(NormalizerNamed):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(CertsCustomPostScriptInstNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['template_vars'] = DefaultSetterConstant({})
+
+    @property
+    def config_path(self):
+        return ['post_template_scripts', 'scripts', SUBDICT_METAKEY_ANY]
+
+    @property
+    def name_key(self):
+        return 'srcpath'
 
 
 class CertsInstOptsNormer(NormalizerBase):
@@ -456,6 +504,11 @@ class AgentConfigDirSourcesNormer(NormalizerBase):
 class ComposeNormer(NormalizerBase):
 
     def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          ComposeEnvNormer(pluginref),
+        ]
+
         super(ComposeNormer, self).__init__(
            pluginref, *args, **kwargs
         )
@@ -469,15 +522,41 @@ class ComposeNormer(NormalizerBase):
         return ['compose']
 
 
+class ComposeEnvNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(ComposeEnvNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['settings'] = DefaultSetterConstant({})
+
+    @property
+    def config_path(self):
+        return ['environment']
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        login_args = self.pluginref.get_ansible_var(
+          'smabot_hashivault_login_args'
+        )
+
+        ssl_verify = login_args.get('connection', {}).get('validate_certs', True)
+
+        if not ssl_verify:
+            my_subcfg['settings']['VAULT_SKIP_VERIFY'] = "true"
+
+        return my_subcfg
+
+
 class ActionModule(ConfigNormalizerBaseMerger):
 
     def __init__(self, *args, **kwargs):
         super(ActionModule, self).__init__(ConfigRootNormalizer(self), 
             *args,
-            ##default_merge_vars=[
-            ##   'smabot_hashivault_config_instance_args_extra'
-            ##],
-            ##extra_merge_vars_ans=['smabot_hashivault_config_instance_args_extra'],
+            default_merge_vars=[
+              'smabot_hashivault_ssl_cert_agent_args_defaults'
+            ],
+            extra_merge_vars_ans=['smabot_hashivault_ssl_cert_agent_args_extra'],
             **kwargs
         )
 

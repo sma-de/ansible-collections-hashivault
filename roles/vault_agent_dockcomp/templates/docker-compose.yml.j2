@@ -8,6 +8,13 @@
       image: "{{ smabot_hashivault_agent_dockcomp_args_normed.compose.image.name ~ ':' ~ smabot_hashivault_agent_dockcomp_args_normed.compose.image.version }}"
       restart: unless-stopped
 
+{% if smabot_hashivault_agent_dockcomp_args_normed.compose.environment.settings %}
+      environment:
+{% for ex in smabot_hashivault_agent_dockcomp_args_normed.compose.environment.settings | dict2items %}
+        {{ ex.key }}: "{{ ex.value }}"
+{% endfor %}
+{% endif %}
+
       volumes:
         - {{ smabot_hashivault_agent_dockcomp_args_normed.compose.dir }}/docker_entrywrapper.sh:/usr/local/bin/docker_entrywrapper.sh:ro
 

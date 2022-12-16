@@ -1,0 +1,52 @@
+#!/bin/sh
+
+##
+## main function of this script is atm to split the vault provided pem
+## "superfile" into various specific subfiles for key and chain and so on,
+## but it also allows to execute any user provided custom script there after
+##
+
+_mydir="$( readlink -f "$0" | xargs dirname)"
+custom_scripts_subdir="${_mydir}/[[ VAULTCFG_TEMPLATE_VARS.SUBSCRIPTS_DIR ]]"
+
+
+super_pem="${1:?}"
+
+pemdir="$(dirname "${super_pem}" )"
+
+cd "${pemdir}" || exit "$?"
+
+## split all-in-one super pem into multiple files, one per cert/key
+awk '/^\s*$/{x="xx"++i;next}{print > x;}' "${super_pem}" || exit "$?"
+
+splitfiles="$(ls -1 xx* | sort)"
+
+# private key should be on top ...
+pkey_file="$(echo "$splitfiles" | sed -n 1p)"
+
+# ... directly followed by client cert
+client_cert="$(echo "$splitfiles" | sed -n 2p)"
+
+# the rest should be the ca keychain (minus root obviously)
+ca_chain="$(echo "$splitfiles" | tail -n +3 | tr '\n' ' ')"
+
+# move/rename to final name
+mv "$pkey_file" "[[ VAULTCFG_TEMPLATE_VARS.FILEPATH_PRIVATE_KEY ]]"
+
+cat ${ca_chain} > "[[ VAULTCFG_TEMPLATE_VARS.FILEPATH_CA_CHAIN ]]"
+cat "$client_cert" ${ca_chain} > "[[ VAULTCFG_TEMPLATE_VARS.FILEPATH_CERT_CHAINED ]]"
+
+mv "$client_cert" "[[ VAULTCFG_TEMPLATE_VARS.FILEPATH_CERT_ONLY ]]"
+
+rm -f xx*
+
+
+## optionally call custom user scripts
+if [ -d "${custom_scripts_subdir}" ]; then
+  ls -1 "${custom_scripts_subdir}"/*.sh | while read f; do
+    test -n "$f" || continue
+
+    "$f"  # call custom subscript
+  done
+fi
+

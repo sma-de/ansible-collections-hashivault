@@ -8,9 +8,14 @@
 
   - include_tasks: "{{ role_path }}/../config_initial/tasks/prepare_system.yml"
 
+##  - debug:
+##      var: smabot_hashivault_unseal_vault_args
+
   - name: check if vault is sealed or not
     terryhowe.hashivault.hashivault_status:
       url: "{{ smabot_hashivault_unseal_vault_args.server_url }}"
+      verify: >-
+        {{ smabot_hashivault_unseal_vault_args.connection.validate_certs | default(omit) }}
     register: _tmp_vault_status
 
 
@@ -26,6 +31,8 @@
           url: "{{ smabot_hashivault_unseal_vault_args.server_url }}"
           keys: >-
             {{ smabot_hashivault_unseal_vault_args.master_keys | join(' ') }}
+          verify: >-
+            {{ smabot_hashivault_unseal_vault_args.connection.validate_certs | default(omit) }}
 
 
       - set_fact:
@@ -33,6 +40,8 @@
             taskname: "assure vault server is properly booted and reachable (timeout: 5min)"
             config:
               url: "{{ smabot_hashivault_unseal_vault_args.server_url }}/v1/sys/health"
+              validate_certs: >-
+                {{ smabot_hashivault_unseal_vault_args.connection.validate_certs | default(omit) }}
 
       - ansible.builtin.include_role:
           name: smabot.base.wait_until_webservice_ready

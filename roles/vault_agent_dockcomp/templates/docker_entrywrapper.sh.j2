@@ -33,6 +33,12 @@ if [ -e /vault/file ]; then
 fi
 
 
+##
+## prepare system making sure some must have binaries are definitly avaible
+##
+apk add curl openssl
+
+
 {% if smabot_hashivault_agent_dockcomp_args_normed._agent_initialcfg | default(False) %}
 ##
 ## on initial run use special initial cfg to generate/template specific

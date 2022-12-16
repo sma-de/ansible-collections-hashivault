@@ -1,5 +1,9 @@
 ---
 
+##  - debug:
+##      var: smabot_hashivault_login_args
+
+
   - set_fact:
       smabot_hashivault_login_args_normed: "{{ smabot_hashivault_login_args }}"
 
@@ -15,6 +19,8 @@
       - set_fact:
           smabot_hashivault_unseal_vault_args:
             server_url: "{{ smabot_hashivault_login_args_normed.server_url }}"
+            connection: >-
+              {{ smabot_hashivault_login_args_normed.get('connection', {}) }}
             master_keys: >-
               {{ _tmp_hvault_masterkeys }}
         no_log: true
@@ -43,6 +49,7 @@
       role_id: "{{ smabot_hashivault_login_creds.id }}"
       secret_id: "{{ smabot_hashivault_login_creds.secret }}"
       url: "{{ smabot_hashivault_login_args_normed.server_url }}"
+      verify: "{{ smabot_hashivault_login_args_normed.connection.validate_certs | default(omit) }}"
     register: _tmp_login
     no_log: true
 
@@ -51,5 +58,5 @@
       smabot_hashivault_login_creds: >-
         {{ smabot_hashivault_login_creds
          | combine({'token': _tmp_login.login.token}) }}
-    ##no_log: true
+    no_log: true
 

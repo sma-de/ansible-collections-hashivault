@@ -1,7 +1,18 @@
 ---
 
-  ## expect proper login args set/provided externally
-  ## note: needed for normalizing
+    ## support vars.d dirs
+  - include_role:
+      name: smabot.base.expand_vardirs
+
+
+##  - debug:
+##      var: smabot_hashivault_login_args
+##  - debug:
+##      var: smabot_hashivault_ssl_cert_agent_args
+
+
+  ## note: needed for normalizing,
+  ##   expect proper login args set/provided externally
   - name: handle vault login
     ansible.builtin.include_role:
       name: smabot.hashivault.vault_login

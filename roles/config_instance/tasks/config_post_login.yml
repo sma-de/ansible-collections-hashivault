@@ -35,12 +35,3 @@
     loop_control:
       loop_var: _iter_cert_auth
 
-
-  ## manage pki's
-  - include_tasks: engines/pki/handle_pkis.yml
-    loop: >-
-      {{ smabot_hashivault_config_instance_args_normed.pkis.pkis
-       | dict2items }}
-    loop_control:
-      loop_var: _iter_pkis
-
