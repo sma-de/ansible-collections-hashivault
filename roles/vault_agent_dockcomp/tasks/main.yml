@@ -1,0 +1,96 @@
+---
+
+  - smabot.hashivault.normalize_agent_dockcomp_args:
+    register: _tmp_normed_cfg
+    ##no_log: true
+
+  - set_fact:
+      smabot_hashivault_agent_dockcomp_args_normed: "{{ _tmp_normed_cfg.normalized }}"
+    ##no_log: true
+
+
+  - name: assure local dir(s) do exist
+    ansible.builtin.file:
+      path: "{{ _iter_dirs.value.path }}"
+      state: directory
+    loop: >-
+      {{ smabot_hashivault_agent_dockcomp_args_normed._target_dirs | dict2items }}
+    loop_control:
+      loop_var: _iter_dirs
+
+
+    ##
+    ## note that mode and group are important here as container
+    ## user runs with 1000 and obviously must have rights to
+    ## write into the dir
+    ##
+  - name: create hostmapped agent export dirs with correct settings
+    ansible.builtin.file:
+      path: "{{ _iter_dirs.value.path }}"
+      group: "1000"
+      mode: "770"
+      state: directory
+    loop: >-
+      {{ smabot_hashivault_agent_dockcomp_args_normed._vol_export_dirs | dict2items }}
+    loop_control:
+      loop_var: _iter_dirs
+
+
+  ## template config dirs
+  - include_tasks: handle_cfgdirs.yml
+    loop: >-
+      {{ smabot_hashivault_agent_dockcomp_args_normed._agent_confdirs }}
+    loop_control:
+      loop_var: _iter_cfgdirs
+
+
+  ## template config files
+  - include_tasks: template_cfgfile.yml
+    loop: >-
+      {{ smabot_hashivault_agent_dockcomp_args_normed.agent_cfg.files
+       | dict2items | map(attribute='value') }}
+    loop_control:
+      loop_var: _iter_cfgfile
+
+
+  ##
+  ## note: atm in difference to vault server vault agent does
+  ##   not support a config dir, only a single cfgfile, so
+  ##   we combine our various cfg input files here into a single one
+  ##
+  - name: combine config fragments into a single cfgfile
+    ansible.builtin.assemble: "{{ _iter_cfgfiles.config }}"
+    loop: >-
+      {{ smabot_hashivault_agent_dockcomp_args_normed._agent_cfgfiles }}
+    loop_control:
+      loop_var: _iter_cfgfiles
+
+
+  ## template ctmpl template files
+  - include_tasks: template_cfgfile.yml
+    loop: >-
+      {{ smabot_hashivault_agent_dockcomp_args_normed.agent_cfg.ctmpls
+       | dict2items | map(attribute='value') }}
+    loop_control:
+      loop_var: _iter_cfgfile
+
+
+  ## handle optional init_auth stuff
+  - include_tasks: "init_authmethods/{{ smabot_hashivault_agent_dockcomp_args_normed.init_auth.method }}.yml"
+    when: smabot_hashivault_agent_dockcomp_args_normed.init_auth is truthy
+
+
+  - name: template entrywrapper script
+    ansible.builtin.template:
+      src: docker_entrywrapper.sh.j2
+      dest: "{{ smabot_hashivault_agent_dockcomp_args_normed.compose.dir }}/docker_entrywrapper.sh"
+      mode: "755"
+    notify: "restart docker compose project"
+
+
+  - ansible.builtin.include_role:
+      name: smabot.containers.compose_app
+    vars:
+      smabot_dockcompose_prjdir: >-
+        {{ smabot_hashivault_agent_dockcomp_args_normed.compose.dir }}
+

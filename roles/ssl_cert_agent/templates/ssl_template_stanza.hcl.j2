@@ -1,0 +1,15 @@
+
+##
+## templates / creates / manages client a client cert for this machine
+##
+template {
+  source      = "{{ VAULTCFG_TEMPLATE_VARS.SRCFILE }}"
+  destination = "{{ VAULTCFG_TEMPLATE_VARS.DESTFILE }}"
+
+  ## run this script to split pem super file into different
+  ## subfiles as different users need the cert in different formats
+  exec = {
+    command = ["{{ VAULTCFG_TEMPLATE_VARS.EXEC_SCRIPT }}", "{{ VAULTCFG_TEMPLATE_VARS.DESTFILE }}"]
+  }
+}
+

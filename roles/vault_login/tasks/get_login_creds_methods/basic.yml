@@ -1,0 +1,21 @@
+---
+
+    # TODO: support other auth types besides approle???
+  - set_fact:
+      smabot_hashivault_login_creds:
+         id: >-
+           {{
+              smabot_hashivault_login_args_normed.creds.params.id
+           }}
+
+         secret: >-
+           {{
+              smabot_hashivault_login_args_normed.creds.params.secret
+           }}
+
+         login_mount: >-
+           {{
+              smabot_hashivault_login_args_normed.creds.params.login_mount
+           }}
+##    no_log: true
+

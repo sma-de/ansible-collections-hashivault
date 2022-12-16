@@ -13,9 +13,9 @@
  
 
   ## manage auth methods
-  - include_tasks: handle_auth_methods.yml
+  - include_tasks: handle_auth_methods/main.yml
     loop: >-
-      {{ smabot_hashivault_config_instance_args_normed.auth_methods
+      {{ smabot_hashivault_config_instance_args_normed.auth_methods.authers
        | dict2items }}
     loop_control:
       loop_var: _iter_auth_methods

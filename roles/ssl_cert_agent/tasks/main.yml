@@ -1,0 +1,24 @@
+---
+
+  ## expect proper login args set/provided externally
+  ## note: needed for normalizing
+  - name: handle vault login
+    ansible.builtin.include_role:
+      name: smabot.hashivault.vault_login
+
+
+  - smabot.hashivault.normalize_ssl_cert_agent_args:
+    register: _tmp_normed_cfg
+    ##no_log: true
+
+  - set_fact:
+      smabot_hashivault_ssl_cert_agent_args_normed: "{{ _tmp_normed_cfg.normalized }}"
+    ##no_log: true
+
+
+  - ansible.builtin.include_role:
+      name: smabot.hashivault.vault_agent_dockcomp
+    vars:
+      smabot_hashivault_agent_dockcomp_args: >-
+        {{ smabot_hashivault_ssl_cert_agent_args_normed.agent }}
+

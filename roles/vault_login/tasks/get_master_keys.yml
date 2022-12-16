@@ -1,0 +1,4 @@
+---
+
+  - include_tasks: "get_master_keys_methods/{{ smabot_hashivault_login_args_normed.master_keys.method }}.yml"
+

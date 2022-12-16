@@ -53,9 +53,7 @@
 
 
   ##handle issuer roles
-  - name: create/modify/delete issuer role
-    terryhowe.hashivault.hashivault_pki_role: >-
-      {{ _iter_pkis_roles.value.config }}
+  - include_tasks: handle_role.yml
     loop: >-
       {{ _iter_pkis.value.issuer_roles.roles
        | dict2items }}

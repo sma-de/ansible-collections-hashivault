@@ -1,0 +1,19 @@
+
+auto_auth {
+  method {
+    type = "cert"
+
+{% if VAULTCFG_TEMPLATE_VARS.MOUNT_POINT | default(False) %}
+    mount_path = "{{ VAULTCFG_TEMPLATE_VARS.MOUNT_POINT }}"
+{% endif %}
+
+    config = {
+{% if VAULTCFG_TEMPLATE_VARS.ROLE_NAME | default(False) %}
+      name = "{{ VAULTCFG_TEMPLATE_VARS.ROLE_NAME }}"
+{% endif %}
+      client_cert = "{{ VAULTCFG_TEMPLATE_VARS.CLIENT_CERT }}"
+      client_key = "{{ VAULTCFG_TEMPLATE_VARS.CLIENT_KEY }}"
+    }
+  }
+}
+

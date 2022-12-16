@@ -1,0 +1,58 @@
+---
+
+###########  handle target dir
+  - set_fact:
+      _tmp_target_dir: "{{ _iter_cfgfile.get('target_dir', None) }}"
+
+  - set_fact:
+      _tmp_target_dir: >-
+        {{ _iter_cfgdirs.host_path.path }}
+    when: not _tmp_target_dir
+
+
+###########  handle target file name
+  - set_fact:
+      _tmp_target_name: "{{ _iter_cfgfile.get('target_name', None) }}"
+
+  - name: default agent cfg file target name
+    set_fact:
+      _tmp_target_name: >-
+         {{ _iter_cfgfile.src | basename | splitext | first }}
+    when: not _tmp_target_name
+
+
+###########  make optional special template vars accessable
+  - set_fact:
+      VAULTCFG_TEMPLATE_VARS: "{{ _iter_cfgfile.template_vars }}"
+    when: _iter_cfgfile.template_vars is defined
+
+
+###########  finally template cfgfile
+  - set_fact:
+      _tmp_modcfg: >-
+         {{ _iter_cfgfile.config | default({}, True) | combine({
+              'src': _iter_cfgfile.src,
+              'dest': _tmp_target_dir ~ '/' ~ _tmp_target_name,
+            })
+         }}
+
+
+  - block:
+
+      - name: default target file mode from source file
+        ansible.builtin.stat:
+          path: "{{ _tmp_modcfg.src }}"
+        register: _tmp_src_stats
+        delegate_to: localhost
+
+      - set_fact:
+          _tmp_modcfg: >-
+             {{ _tmp_modcfg | combine({'mode': _tmp_src_stats.stat.mode}) }}
+
+    when: _tmp_modcfg.get('mode', False) is falsy
+
+
+  - name: template vault agent config file  ==>>  {{ _iter_cfgfile.path }}
+    ansible.builtin.template: "{{ _tmp_modcfg }}"
+    notify: "restart docker compose project"
+

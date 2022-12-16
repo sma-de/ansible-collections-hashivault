@@ -1,0 +1,4 @@
+---
+
+  - include_tasks: "get_login_creds_methods/{{ smabot_hashivault_login_args_normed.creds.method }}.yml"
+

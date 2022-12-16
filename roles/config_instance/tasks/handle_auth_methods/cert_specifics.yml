@@ -1,0 +1,8 @@
+---
+
+  - include_tasks: handle_auth_certs.yml
+    loop: >-
+      {{ _iter_cert_auth.certs | dict2items }}
+    loop_control:
+      loop_var: _iter_auth_certs
+

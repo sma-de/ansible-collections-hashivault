@@ -1,5 +1,23 @@
 ---
 
+  ## manage secret engines
+  - include_tasks: engines/handle_secret_engines.yml
+    loop: >-
+      {{ smabot_hashivault_config_instance_args_normed.secret_engines.engines
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_sengines
+
+
+  ## manage pki's
+  - include_tasks: engines/pki/handle_pkis.yml
+    loop: >-
+      {{ smabot_hashivault_config_instance_args_normed.pkis.pkis
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_pkis
+
+
   ## manage all approlers
   - include_tasks: handle_approlers.yml
     loop: >-
@@ -9,13 +27,13 @@
       loop_var: _iter_approlers
 
 
-  ## manage secret engines
-  - include_tasks: engines/handle_secret_engines.yml
+  ## manage auth method specifis for cert based auth
+  - include_tasks: handle_auth_methods/cert_specifics.yml
     loop: >-
-      {{ smabot_hashivault_config_instance_args_normed.secret_engines.engines
-       | dict2items }}
+      {{ smabot_hashivault_config_instance_args_normed.auth_methods.authers
+       | dict2items | map(attribute="value") | selectattr('type', '==', 'cert') }}
     loop_control:
-      loop_var: _iter_sengines
+      loop_var: _iter_cert_auth
 
 
   ## manage pki's

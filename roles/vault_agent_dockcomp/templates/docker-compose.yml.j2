@@ -1,0 +1,22 @@
+---
+
+  version: '3'
+  services:
+
+    {{ smabot_hashivault_agent_dockcomp_args_normed.compose.service_id }}:
+      container_name: "{{ smabot_hashivault_agent_dockcomp_args_normed.compose.contname }}"
+      image: "{{ smabot_hashivault_agent_dockcomp_args_normed.compose.image.name ~ ':' ~ smabot_hashivault_agent_dockcomp_args_normed.compose.image.version }}"
+      restart: unless-stopped
+
+      volumes:
+        - {{ smabot_hashivault_agent_dockcomp_args_normed.compose.dir }}/docker_entrywrapper.sh:/usr/local/bin/docker_entrywrapper.sh:ro
+
+{% for vol in smabot_hashivault_agent_dockcomp_args_normed.compose.volumes | dict2items %}
+        - {{ vol.value._mapping }}
+{% endfor %}
+
+      working_dir: /vault/config/agent
+
+      entrypoint:
+        - /usr/local/bin/docker_entrywrapper.sh
+

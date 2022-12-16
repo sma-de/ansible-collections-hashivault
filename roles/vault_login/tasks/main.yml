@@ -1,0 +1,55 @@
+---
+
+  - set_fact:
+      smabot_hashivault_login_args_normed: "{{ smabot_hashivault_login_args }}"
+
+
+    ##
+    ## optionally assure vault is unsealed before trying to connect
+    ## to it, unfortunately we need the master key(s) for this
+    ##
+  - block:
+
+      - include_tasks: get_master_keys.yml
+
+      - set_fact:
+          smabot_hashivault_unseal_vault_args:
+            server_url: "{{ smabot_hashivault_login_args_normed.server_url }}"
+            master_keys: >-
+              {{ _tmp_hvault_masterkeys }}
+        no_log: true
+
+      - name: assure vault is unsealed
+        ansible.builtin.include_role:
+          name: smabot.hashivault.unseal_vault
+
+        ## explicitly unset variables which contain master keys
+        ## as this secret should not be kept longer around
+        ## than necessary
+      - set_fact:
+          smabot_hashivault_unseal_vault_args: null
+          _tmp_hvault_masterkeys: null
+
+    when: smabot_hashivault_login_args_normed.get('master_keys', False)
+
+
+  - include_tasks: get_login_creds.yml
+
+
+  - name: login to vault / aquire auth token
+    smabot.hashivault.hashivault_login:
+      authtype: approle
+      login_mount_point: "{{ smabot_hashivault_login_creds.login_mount }}"
+      role_id: "{{ smabot_hashivault_login_creds.id }}"
+      secret_id: "{{ smabot_hashivault_login_creds.secret }}"
+      url: "{{ smabot_hashivault_login_args_normed.server_url }}"
+    register: _tmp_login
+    no_log: true
+
+
+  - set_fact:
+      smabot_hashivault_login_creds: >-
+        {{ smabot_hashivault_login_creds
+         | combine({'token': _tmp_login.login.token}) }}
+    ##no_log: true
+

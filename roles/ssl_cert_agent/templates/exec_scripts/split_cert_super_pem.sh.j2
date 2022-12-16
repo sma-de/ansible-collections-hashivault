@@ -1,0 +1,32 @@
+#!/bin/sh
+
+super_pem="${1:?}"
+
+pemdir="$(dirname "${super_pem}" )"
+
+cd "${pemdir}" || exit "$?"
+
+## split all-in-one super pem into multiple files, one per cert/key
+awk '/^\s*$/{x="xx"++i;next}{print > x;}' "${super_pem}" || exit "$?"
+
+splitfiles="$(ls -1 xx* | sort)"
+
+# private key should be on top ...
+pkey_file="$(echo "$splitfiles" | sed -n 1p)"
+
+# ... directly followed by client cert
+client_cert="$(echo "$splitfiles" | sed -n 2p)"
+
+# the rest should be the ca keychain (minus root obviously)
+ca_chain="$(echo "$splitfiles" | tail -n +3 | tr '\n' ' ')"
+
+# move/rename to final name
+mv "$pkey_file" "[[ VAULTCFG_TEMPLATE_VARS.FILEPATH_PRIVATE_KEY ]]"
+
+cat ${ca_chain} > "[[ VAULTCFG_TEMPLATE_VARS.FILEPATH_CA_CHAIN ]]"
+cat "$client_cert" ${ca_chain} > "[[ VAULTCFG_TEMPLATE_VARS.FILEPATH_CERT_CHAINED ]]"
+
+mv "$client_cert" "[[ VAULTCFG_TEMPLATE_VARS.FILEPATH_CERT_ONLY ]]"
+
+rm -f xx*
+

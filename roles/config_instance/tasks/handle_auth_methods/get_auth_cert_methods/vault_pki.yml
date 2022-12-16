@@ -1,0 +1,11 @@
+---
+
+  - name: get ca cert for given mountpoint
+    terryhowe.hashivault.hashivault_pki_cert_get: >-
+      {{ _iter_auth_certs.value.certcfg.params }}
+    register: _tmp_modres
+
+
+  - set_fact:
+      _smabot_obtained_auth_cert: "{{ _tmp_modres.data.certificate }}"
+

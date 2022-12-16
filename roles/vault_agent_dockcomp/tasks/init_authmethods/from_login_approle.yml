@@ -1,0 +1,17 @@
+---
+
+  - name: copy approle auto auth role id to target
+    ansible.builtin.copy:
+      content: "{{ smabot_hashivault_login_creds.id }}"
+      dest: "{{ smabot_hashivault_agent_dockcomp_args_normed.init_auth.params.filepath_role_id }}"
+      mode: '0600'
+    no_log: true
+
+
+  - name: copy approle auto auth role secret to target
+    ansible.builtin.copy:
+      content: "{{ smabot_hashivault_login_creds.secret }}"
+      dest: "{{ smabot_hashivault_agent_dockcomp_args_normed.init_auth.params.filepath_secret }}"
+      mode: '0600'
+    no_log: true
+

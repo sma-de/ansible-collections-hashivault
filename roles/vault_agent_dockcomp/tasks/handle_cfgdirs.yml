@@ -1,0 +1,9 @@
+---
+
+  ## template config dirs
+  - include_tasks: template_cfgfiles.yml
+    loop: >-
+      {{ _iter_cfgdirs.sources | dict2items }}
+    loop_control:
+      loop_var: _iter_srcdirs
+

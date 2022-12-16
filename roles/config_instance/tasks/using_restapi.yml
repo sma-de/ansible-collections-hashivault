@@ -24,29 +24,28 @@
     ##
   - block:
 
-        ##
-        ## optionally assure vault is unsealed before trying to connect
-        ## to it, unfortunately we need the master key(s) for this
-        ##
-      - block:
+          ##      - set_fact:
+          ##          smabot_hashivault_login_args: >-
+          ##            {{ smabot_hashivault_config_instance_args_normed.login }}
 
-          - set_fact:
-              smabot_hashivault_unseal_vault_args:
-                server_url: "{{ _vault_env.VAULT_ADDR }}"
-                master_keys: >-
-                  {{ smabot_hashivault_config_instance_args_normed.master_keys }}
-            no_log: true
+      - set_fact:
+          _tmp_role_call_args: >-
+            {{ smabot_hashivault_login_args | default({}, True)
+             | combine(smabot_hashivault_config_instance_args_normed.login,
+                 recursive=True, list_merge='append'
+             ) }}
 
-          - name: assure vault is unsealed
-            ansible.builtin.include_role:
-              name: smabot.hashivault.unseal_vault
+      - name: handle vault login
+        ansible.builtin.include_role:
+          name: smabot.hashivault.vault_login
+        vars:
+          smabot_hashivault_login_args: >-
+            {{ _tmp_role_call_args }}
 
-        when: smabot_hashivault_config_instance_args_normed.get('master_keys', False)
-
-
-      - include_tasks: get_login_creds.yml
-
-      - include_tasks: login.yml
+      - set_fact:
+           _vault_env: >-
+             {{ _vault_env | combine({'VAULT_TOKEN': smabot_hashivault_login_creds.token}) }}
+        ##no_log: true
 
     when: not smabot_hashivault_first_init
 
@@ -67,9 +66,33 @@
     environment: "{{ _vault_env }}"
 
 
-    ## login with eventually new created vault manager approle,
+    ## login with possibly newly created vault manager approle,
     ## updates _vault_env with new credentials
-  - include_tasks: login.yml
+  ##- include_tasks: login.yml
+
+    ##  - set_fact:
+    ##      smabot_hashivault_login_args: >-
+    ##        {{ smabot_hashivault_config_instance_args_normed.login
+    ##         | smabot.hashivault.change_login_method(
+    ##             method='basic', params=_vaultman_creds
+    ##           )
+    ##        }}
+
+  - name: handle vault login
+    ansible.builtin.include_role:
+      name: smabot.hashivault.vault_login
+    vars:
+      smabot_hashivault_login_args: >-
+        {{ smabot_hashivault_config_instance_args_normed.login
+         | smabot.hashivault.change_login_method(
+             method='basic', params=_vaultman_creds
+           )
+        }}
+
+  - set_fact:
+       _vault_env: >-
+         {{ _vault_env | combine({'VAULT_TOKEN': smabot_hashivault_login_creds.token}) }}
+    ##no_log: true
 
 
   - block:

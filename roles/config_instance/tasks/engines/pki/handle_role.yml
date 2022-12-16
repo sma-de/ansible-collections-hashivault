@@ -1,0 +1,19 @@
+---
+
+  ##handle issuer roles
+  - name: create/modify/delete issuer role
+    terryhowe.hashivault.hashivault_pki_role: >-
+      {{ _iter_pkis_roles.value.config }}
+
+
+  - set_fact:
+      _smabot_hvault_polname_prefix: null
+
+  - name: handle pki role policies
+    include_tasks: handle_policy.yml
+    loop: >-
+      {{ _iter_pkis_roles.value.policies | dict2items
+       | map(attribute='value') }}
+    loop_control:
+      loop_var: _iter_policies
+

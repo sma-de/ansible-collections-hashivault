@@ -1,6 +1,13 @@
 ---
 
+  ## make optional (extra) template vars avaible for templating
   - set_fact:
+      _hvault_template_vars: >-
+         {{ _iter_policies.template_vars | default({}, True) }}
+
+
+  - name: template vault policy
+    set_fact:
       _cur_pol: >-
         {{ _iter_policies.config
          | combine({
@@ -11,8 +18,7 @@
 
   - set_fact:
       _cur_pol: >-
-        {{ _cur_pol
-         | combine({
+        {{ _cur_pol | combine({
              'name': _smabot_hvault_polname_prefix ~ _cur_pol.name,
          })
         }}
@@ -21,7 +27,7 @@
       and _smabot_hvault_polname_prefix is truthy
 
 
-  - name: (de)-install vault policies
+  - name: install or remove vault policy
     terryhowe.hashivault.hashivault_policy: "{{ _cur_pol }}"
 
 

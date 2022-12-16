@@ -1,0 +1,5 @@
+{{ with pkiCert "[[ VAULTCFG_TEMPLATE_VARS.MOUNT_POINT ]]/issue/[[ VAULTCFG_TEMPLATE_VARS.ROLE_NAME ]]" [[ VAULTCFG_TEMPLATE_VARS.REQUEST_PARAMS ]] }}
+{{ .Data.Key }}
+{{ .Data.Cert }}
+{{ .Data.CA }}
+{{ end }}

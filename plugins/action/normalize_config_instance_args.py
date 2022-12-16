@@ -6,6 +6,7 @@ __metaclass__ = type
 import abc
 import copy
 from urllib.parse import urlparse
+import os
 
 from ansible.errors import AnsibleOptionsError
 ##from ansible.module_utils.six import iteritems, string_types
@@ -29,7 +30,7 @@ class ConfigRootNormalizer(NormalizerBase):
           AppRolersNormer(pluginref),
           PkiInstNormer(pluginref),
           SecretEnginesNormer(pluginref),
-          LoginCredsNormer(pluginref),
+          LoginNormer(pluginref),
         ]
 
         super(ConfigRootNormalizer, self).__init__(pluginref, *args, **kwargs)
@@ -45,6 +46,17 @@ class ConfigRootNormalizer(NormalizerBase):
         }
 
         return my_subcfg
+
+
+class InstDefPolInstNormer(NormalizerNamed):
+
+    @property
+    def config_path(self):
+        return ['policies', SUBDICT_METAKEY_ANY]
+
+    @property
+    def name_key(self):
+        return 'src'
 
 
 class PkiInstNormer(NormalizerNamed):
@@ -66,19 +78,6 @@ class PkiInstNormer(NormalizerNamed):
     def config_path(self):
         return ['pkis', 'pkis', SUBDICT_METAKEY_ANY]
 
-##   issuer_roles:
-## ##        roles:
-## ##          default:
-## ##            # the ca used for this role must be named here by its config key, in
-## ##            # the following situations this can be auto-defaulted making it
-## ##            # optional to set this explicitly:
-## ##            # 
-## ##            #   A) When there is only a root_ca and no intermediates => root_ca will be used
-## ##            #   B) When there is just one intermed deps tree => the last intermed in the ordered deps list will be used
-## ##            #   C) When user cfg explicitly sets the optional subkey 'role_default' to true for one intermediate => default marked one is used
-## ##            # 
-## ##            ca: root_ca
-## ##            options: # optional submap of cert settings
 
 class PkiInstIssuerRolesAllNormer(NormalizerBase):
 
@@ -107,11 +106,19 @@ class PkiInstIssuerRolesAllNormer(NormalizerBase):
 class PkiInstIssuerRoleInstNormer(NormalizerNamed):
 
     def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          PkiInstIssuerRoleInstOptsNormer(pluginref),
+          PkiInstIssuerRoleInstPolInstNormer(pluginref),
+        ]
+
         super(PkiInstIssuerRoleInstNormer, self).__init__(
            pluginref, *args, **kwargs
         )
 
-        self.default_setters['options'] = DefaultSetterConstant({})
+        self.default_setters['inherit_from_parent'] = DefaultSetterConstant(True)
+        self.default_setters['default_policies'] = DefaultSetterConstant(True)
+        self.default_setters['policies'] = DefaultSetterConstant({})
 
     @property
     def config_path(self):
@@ -137,6 +144,16 @@ class PkiInstIssuerRoleInstNormer(NormalizerNamed):
 
         my_subcfg['ca'] = ca
 
+        if my_subcfg['default_policies']:
+            my_rolepath = self.pluginref.get_ansible_var('role_path')
+            tmp = "{}/templates/vault_policies/pkis/request_certs.hcl.j2".format(my_rolepath)
+
+            setdefault_none(my_subcfg['policies'], tmp, None)
+
+        return my_subcfg
+
+
+    def _handle_specifics_postsub(self, cfg, my_subcfg, cfgpath_abs):
         opts = my_subcfg['options']
 
         ## on default limit client cert time to live to just 3 days
@@ -145,7 +162,7 @@ class PkiInstIssuerRoleInstNormer(NormalizerNamed):
         c = setdefault_none(my_subcfg, 'config', {})
 
         c['name'] = my_subcfg['name']
-        c['mount_point'] = ca['mount_point']
+        c['mount_point'] = my_subcfg['ca']['mount_point']
 
         c['config'] = opts
 
@@ -153,7 +170,90 @@ class PkiInstIssuerRoleInstNormer(NormalizerNamed):
             c.pop('config')
 
         setdefault_none(c, 'state', 'present')
+        return my_subcfg
 
+
+class PkiInstIssuerRoleInstPolInstNormer(InstDefPolInstNormer):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(PkiInstIssuerRoleInstPolInstNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=2)
+        srcpath = my_subcfg['src']
+
+        if not my_subcfg.get('name', None):
+            n1 = os.path.basename(srcpath).split('.')
+            n1 = n1[0]
+
+            my_subcfg['name'] = "{}_{}_{}".format(n1,
+              pcfg['ca']['mount_point'].replace('/', '_'), pcfg['name']
+            )
+
+        c = setdefault_none(my_subcfg, 'config', {})
+        c['rules'] = srcpath
+        c['name'] = my_subcfg['name']
+
+        tvars = setdefault_none(my_subcfg, 'template_vars', {})
+        tvars['mp'] = pcfg['ca']['mount_point']
+        tvars['pki_rolename'] = pcfg['name']
+
+        return my_subcfg
+
+
+class PkiInstIssuerRoleInstOptsNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(PkiInstIssuerRoleInstOptsNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        # be rather restrictive on default
+        self.default_setters['allow_localhost'] = DefaultSetterConstant(False)
+        self.default_setters['allow_wildcard_certificates'] = DefaultSetterConstant(False)
+        self.default_setters['allow_glob_domains'] = DefaultSetterConstant(True)
+
+    @property
+    def config_path(self):
+        return ['options']
+
+    def _inherit_from_parent(self, cfg, my_subcfg, cfgpath_abs):
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs)
+        if not pcfg['inherit_from_parent']:
+            return my_subcfg
+
+        ca = pcfg['ca']
+
+        tmp = copy.deepcopy(ca['options'])
+
+        ## some key's differ somewhat between ca's metadata
+        ## and role metadata, translate them here
+        t2 = tmp.pop('permitted_dns_domains', None)
+        if t2:
+            t3 = []
+
+            for x in t2:
+                if x[0] == '.':
+                    x = x[1:]
+
+                ## note: it seems for the standard case of allowing
+                ##   to create certs like "<hostname>.<domain>" it
+                ##   is necessary to allow glob domains and start
+                ##   the domain pattern with a glob
+                x = '*.' + x
+
+                t3.append(x)
+
+            tmp['allowed_domains'] = t3
+
+        tmp.update(my_subcfg)
+        return tmp
+
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        my_subcfg = self._inherit_from_parent(cfg, my_subcfg, cfgpath_abs)
         return my_subcfg
 
 
@@ -201,6 +301,9 @@ class PkiInstCaBaseNormer(NormalizerNamed):
     def is_root(self):
         return self.ca_kind == 'root'
 
+    def _norm_ca_cfgvalues(self, ca_opts, cfg, my_subcfg, cfgpath_abs):
+        pass
+
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
         pcfg = self.get_parentcfg(cfg, cfgpath_abs,
           level=self.cur_pki_baselvl
@@ -227,6 +330,10 @@ class PkiInstCaBaseNormer(NormalizerNamed):
         c['mount_point'] = my_subcfg['mount_point']
 
         c['common_name'] = my_subcfg['common_name']
+
+        opts = setdefault_none(my_subcfg, 'options', {})
+        self._norm_ca_cfgvalues(opts, cfg, my_subcfg, cfgpath_abs)
+
         c['config'] = my_subcfg['options']
 
         if not c['config']:
@@ -265,6 +372,13 @@ class PkiInstRootCaNormer(PkiInstCaBaseNormer):
     @property
     def config_path(self):
         return ['root_ca']
+
+
+    def _norm_ca_cfgvalues(self, ca_opts, cfg, my_subcfg, cfgpath_abs):
+        ## on default convert ca name to a domain and restrict
+        ## allowed dns domains to exactly that one
+        tmp = my_subcfg['common_name'].replace('_', '.')
+        setdefault_none(ca_opts, 'permitted_dns_domains', ['.' + tmp])
 
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
@@ -366,6 +480,23 @@ class PkiInstIntermedTreeNormer(NormalizerBase):
         return result
 
 
+    def _norm_ca_cfgvalues(self, cfg, my_subcfg, cfgpath_abs):
+        if not my_subcfg['inherit_from_parent']:
+            return
+
+        pcfg = my_subcfg['parent']
+        tmp = copy.deepcopy(pcfg['options'])
+        tmp.update(my_subcfg['options'])
+
+        my_subcfg['options'] = tmp
+
+        if not tmp:
+            return
+
+        c = my_subcfg['_modcfgs']['pki_ca']
+        c['config'] = tmp
+
+
     def _handle_specifics_postsub(self, cfg, my_subcfg, cfgpath_abs):
         def_order = {}
         def_sorted = []
@@ -404,6 +535,8 @@ class PkiInstIntermedTreeNormer(NormalizerBase):
 
             v['_modcfgs']['sign_intermed']['mount_point'] = p['mount_point']
 
+            self._norm_ca_cfgvalues(cfg, v, cfgpath_abs + [k])
+
             if v['role_default']:
                 tmp = cfgpath_abs[-1:] + [k]
                 tmp = '.'.join(tmp)
@@ -431,7 +564,6 @@ class PkiInstIntermedTreeNormer(NormalizerBase):
             my_subcfg[tmp]['role_default'] = True
 
             role_default = cfgpath_abs[-1:] + [tmp]
-
             role_default = '.'.join(role_default)
 
         pcfg_base['_role_default_ca'] = role_default
@@ -441,6 +573,13 @@ class PkiInstIntermedTreeNormer(NormalizerBase):
 
 
 class PkiInstIntermedCaNormer(PkiInstCaBaseNormer):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(PkiInstIntermedCaNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['inherit_from_parent'] = DefaultSetterConstant(True)
 
     @property
     def cur_pki_baselvl(self):
@@ -529,11 +668,31 @@ class PkiInstEngineNormer(NormalizerBase):
         return my_subcfg
 
 
+class LoginNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          LoginCredsNormer(pluginref),
+        ]
+
+        super(LoginNormer, self).__init__(pluginref, *args, **kwargs)
+
+    @property
+    def config_path(self):
+        return ['login']
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs)
+        my_subcfg['server_url'] = pcfg['server_url']
+        return my_subcfg
+
+
 class LoginCredsNormer(NormalizerBase):
 
     @property
     def config_path(self):
-        return ['login', 'creds']
+        return ['creds']
 
 
     def _default_login_from_updcreds_azure_keyvault(self,
@@ -728,17 +887,6 @@ class PkiInstDefPolsNormer(InstDefaultPolsNormerBase):
         })
 
 
-class InstDefPolInstNormer(NormalizerNamed):
-
-    @property
-    def config_path(self):
-        return ['policies', SUBDICT_METAKEY_ANY]
-
-    @property
-    def name_key(self):
-        return 'src'
-
-
 ##
 ## TODO: support other types of vault managers besides approle???
 ##
@@ -808,7 +956,7 @@ class AppRolersInstNormer(NormalizerNamed):
 
         c = {
           'name': my_subcfg['name'],
-          'mount_point': pcfg['auth_methods'][my_subcfg['auther']]['mount_point'],
+          'mount_point': pcfg['auth_methods']['authers'][my_subcfg['auther']]['mount_point'],
           'policies': my_subcfg['policies'],
           'state': 'present',
         }
@@ -858,10 +1006,18 @@ class AuthMethodInstNormer(NormalizerNamed):
 
     @property
     def config_path(self):
-        return ['auth_methods', SUBDICT_METAKEY_ANY]
+        return ['auth_methods', 'authers', SUBDICT_METAKEY_ANY]
+
+    def _type_specific_norming_cert(self, cfg, my_subcfg, cfgpath_abs):
+        ## cert based auth has some special subtree keys to handle
+        self.sub_normalizers.append(
+          AuthMethodInstCertInstNormer(self.pluginref),
+        )
+
+        return my_subcfg
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
-        setdefault_none(my_subcfg, 'type', my_subcfg['name'])
+        mytype = setdefault_none(my_subcfg, 'type', my_subcfg['name'])
 
         ## on default a specific (management) policy for each auth method
         ## is created, can be optionally disabled by setting 'policy'
@@ -873,7 +1029,7 @@ class AuthMethodInstNormer(NormalizerNamed):
         )
 
         ##setdefault_none(my_subcfg, 'mount_point', my_subcfg['type'] + '/')
-        tmp = setdefault_none(my_subcfg, 'mount_point', my_subcfg['type'])
+        tmp = setdefault_none(my_subcfg, 'mount_point', mytype)
 
         if tmp[-1] == '/':
             my_subcfg['mount_point'] = tmp[:-1]
@@ -881,7 +1037,7 @@ class AuthMethodInstNormer(NormalizerNamed):
         c = setdefault_none(my_subcfg, 'config', {})
         setdefault_none(c, 'state', 'enabled')
 
-        c['method_type'] = my_subcfg['type']
+        c['method_type'] = mytype
 
         tmp = my_subcfg['mount_point']
 
@@ -894,6 +1050,83 @@ class AuthMethodInstNormer(NormalizerNamed):
 
         if not c['config']:
             c.pop('config')
+
+        tmp = getattr(self, '_type_specific_norming_' + mytype, None)
+        if tmp:
+            my_subcfg = tmp(cfg, my_subcfg, cfgpath_abs)
+
+        return my_subcfg
+
+
+class AuthMethodInstCertInstNormer(NormalizerNamed):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          AuthMethodInstCertInstCertCfgNormer(pluginref),
+          AuthMethodInstCertInstPolInstNormer(pluginref),
+        ]
+
+        super(AuthMethodInstCertInstNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+    @property
+    def config_path(self):
+        return ['certs', SUBDICT_METAKEY_ANY]
+
+    def _handle_specifics_postsub(self, cfg, my_subcfg, cfgpath_abs):
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=2)
+
+        c = setdefault_none(my_subcfg, 'config', {})
+        c['name'] = my_subcfg['name']
+        c['mount_point'] = pcfg['mount_point']
+
+        tmp = []
+
+        for k,v in my_subcfg['policies'].items():
+            tmp.append(v['name'])
+
+        c['policies'] = tmp
+
+        setdefault_none(c, 'state', 'present')
+        return my_subcfg
+
+
+class AuthMethodInstCertInstPolInstNormer(NormalizerNamed):
+
+    @property
+    def config_path(self):
+        return ['policies', SUBDICT_METAKEY_ANY]
+
+
+class AuthMethodInstCertInstCertCfgNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(AuthMethodInstCertInstCertCfgNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['type'] = DefaultSetterConstant('vault_pki')
+
+    @property
+    def config_path(self):
+        return ['certcfg']
+
+    def _type_specific_norming_vault_pki(self, cfg, my_subcfg, cfgpath_abs):
+        p = setdefault_none(my_subcfg, 'params', {})
+
+        setdefault_none(p, 'mount_point', 'pki')
+        p['serial'] = 'ca'
+        return my_subcfg
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        tmp = getattr(self,
+          '_type_specific_norming_' + my_subcfg['type'], None
+        )
+
+        if tmp:
+            my_subcfg = tmp(cfg, my_subcfg, cfgpath_abs)
 
         return my_subcfg
 

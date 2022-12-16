@@ -1,0 +1,19 @@
+---
+
+  - set_fact:
+      smabot_azure_keyvault_secrets_args: >-
+        {{ smabot_hashivault_login_args_normed.master_keys.params }}
+
+  - name: get vault master keys from azure keyvault
+    ansible.builtin.include_role:
+      name: smabot.azure.readwrite_keyvault_secrets
+
+
+##  - debug:
+##      var: smabot_azure_read_secrets
+
+
+  - set_fact:
+      _tmp_hvault_masterkeys: "{{ smabot_azure_read_secrets.secrets }}"
+    no_log: true
+

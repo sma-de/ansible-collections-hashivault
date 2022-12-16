@@ -1,0 +1,14 @@
+---
+
+  - include_tasks: "get_auth_cert_methods/{{ _iter_auth_certs.value.certcfg.type }}.yml"
+
+
+  - set_fact:
+      _tmp_modargs: >-
+        {{ _iter_auth_certs.value.config
+         | combine({'certificate': _smabot_obtained_auth_cert }) }}
+
+  - name: configure authing cert and policies
+    terryhowe.hashivault.hashivault_auth_cert: >-
+      {{ _tmp_modargs }}
+

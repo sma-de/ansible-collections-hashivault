@@ -312,6 +312,43 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
 
 
 
+class ChangeLoginMethodFilter(FilterBase):
+
+    FILTER_ID = 'change_login_method'
+
+    @property
+    def argspec(self):
+        tmp = super(ChangeLoginMethodFilter, self).argspec
+
+        tmp.update({
+          'method': (list(string_types)),
+          'params': ([collections.abc.Mapping]),
+        })
+
+        return tmp
+
+    def run_specific(self, value):
+        if not isinstance(value, collections.abc.Mapping):
+            raise AnsibleOptionsError(
+               "input value must be a dict type but is of type"\
+               " '{}': {}".format(type(value), value)
+            )
+
+        ##display.vvv("[{}]:: input: {}".format(type(self).FILTER_ID, value))
+
+        # first we need to merge the dicts together without changing
+        # the source dicts
+        value = copy.deepcopy(value)
+
+        value['creds'] = {
+          'method': self.get_taskparam('method'),
+          'params': self.get_taskparam('params'),
+        }
+
+        return value
+
+
+
 # ---- Ansible filters ----
 class FilterModule(object):
     ''' filter related to this collection config types '''
@@ -319,7 +356,10 @@ class FilterModule(object):
     def filters(self):
         res = {}
 
-        for f in [ConvertUpdateCredsParamsFilter, FinalizeRolePoliciesFilter, PoliciesFromFilesFilter, SecretCycleCfgFilter]:
+        for f in [ChangeLoginMethodFilter, ConvertUpdateCredsParamsFilter,
+          FinalizeRolePoliciesFilter, PoliciesFromFilesFilter,
+          SecretCycleCfgFilter
+        ]:
             res[f.FILTER_ID] = f()
 
         return res

@@ -1,0 +1,15 @@
+---
+
+    ##
+    ## find all source files in given source dir ending
+    ## with ".j2" and iterate over them
+    ##
+  - include_tasks: template_cfgfile.yml
+    loop: >-
+      {{ query('community.general.filetree', _iter_srcdirs.value.path)
+       | selectattr('state', 'eq', 'file')
+       | selectattr('src', 'search', '\.j2$')
+      }}
+    loop_control:
+      loop_var: _iter_cfgfile
+

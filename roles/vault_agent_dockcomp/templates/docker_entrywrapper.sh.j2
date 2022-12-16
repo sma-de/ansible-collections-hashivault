@@ -1,0 +1,54 @@
+#!/usr/bin/dumb-init /bin/sh
+set -e
+
+
+fn_call_vault_agent() {
+  cfgfile="${1:?}"
+
+# TODO: support extra agent args??
+  ## reuse upstream entrypoint to get "its features"
+  docker-entrypoint.sh vault agent -non-interactive -config="$cfgfile"
+}
+
+
+##
+## fix user perms for bind mounts, this is in theory already
+## handled by standard entrypoint script, but with the big
+## caveat that upstream only does this on first mount,
+## meaning if content later on changes it will fail, so
+## to avoid this we simply redo this on every startup
+## unconditionally which should imho be fine
+##
+
+if [ -e /vault/config ]; then
+  chown -R vault:vault /vault/config || true
+fi
+
+if [ -e /vault/logs ]; then
+  chown -R vault:vault /vault/logs || true
+fi
+
+if [ -e /vault/file ]; then
+  chown -R vault:vault /vault/file || true
+fi
+
+
+{% if smabot_hashivault_agent_dockcomp_args_normed._agent_initialcfg | default(False) %}
+##
+## on initial run use special initial cfg to generate/template specific
+## files needed for later standard prod cfg run to work
+##
+if ! [ -e "{{ smabot_hashivault_agent_dockcomp_args_normed._agent_initialcfg.creates }}" ] || [ -n "${SMABOT_VAGNT_FORCE_INITIAL}" ]; then
+  echo "do initial run ..."
+  fn_call_vault_agent "{{ smabot_hashivault_agent_dockcomp_args_normed._agent_initialcfg.host_path | basename }}"
+fi
+{% endif %}
+
+
+{#
+## note: current implementation expect either exactly one config to use
+##   all the time or exactly two, one initial one and a standard one
+#}
+echo "run standard prod config ..."
+fn_call_vault_agent "{{ (smabot_hashivault_agent_dockcomp_args_normed._agent_cfgfiles | rejectattr("initial") | first).host_path | basename }}"
+
