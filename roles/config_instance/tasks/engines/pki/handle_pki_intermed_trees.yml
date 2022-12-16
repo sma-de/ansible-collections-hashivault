@@ -1,0 +1,8 @@
+---
+
+  - include_tasks: handle_pki_intermeds.yml
+    loop: >-
+      {{ _iter_pkis_int_trees.value._ordering }}
+    loop_control:
+      loop_var: _iter_pkis_int
+

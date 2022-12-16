@@ -13,5 +13,5 @@
   - set_fact:
       _vault_env: >-
         {{ _vault_env | combine({'VAULT_TOKEN': _tmp_login.login.token}) }}
-    no_log: true
+    ##no_log: true
 

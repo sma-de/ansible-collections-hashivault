@@ -7,11 +7,11 @@
 
   - smabot.hashivault.normalize_config_instance_args:
     register: _tmp_normed_cfg
-    no_log: true
+    ##no_log: true
 
   - set_fact:
       smabot_hashivault_config_instance_args_normed: "{{ _tmp_normed_cfg.normalized }}"
-    no_log: true
+    ##no_log: true
 
 
   - block:

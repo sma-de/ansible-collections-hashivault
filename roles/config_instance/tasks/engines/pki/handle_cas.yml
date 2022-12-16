@@ -1,0 +1,12 @@
+---
+
+  - name: configure ca  ==>>  {{ _ca_title }}
+    terryhowe.hashivault.hashivault_pki_ca: >-
+      {{ _cur_ca._modcfgs.pki_ca }}
+    register: _tmp_modres_pki_ca
+
+
+  - name: set ca url's ==>>  {{ _ca_title }}
+    terryhowe.hashivault.hashivault_pki_url: >-
+      {{ _cur_ca._modcfgs.pki_ca_urls }}
+

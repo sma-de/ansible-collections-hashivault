@@ -10,10 +10,19 @@
 
 
   ## manage secret engines
-  - include_tasks: handle_secret_engines.yml
+  - include_tasks: engines/handle_secret_engines.yml
     loop: >-
       {{ smabot_hashivault_config_instance_args_normed.secret_engines.engines
        | dict2items }}
     loop_control:
       loop_var: _iter_sengines
+
+
+  ## manage pki's
+  - include_tasks: engines/pki/handle_pkis.yml
+    loop: >-
+      {{ smabot_hashivault_config_instance_args_normed.pkis.pkis
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_pkis
 

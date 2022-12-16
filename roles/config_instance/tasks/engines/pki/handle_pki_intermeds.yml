@@ -1,0 +1,49 @@
+---
+
+  - set_fact:
+      _cur_intermed: "{{ _iter_pkis_int_trees.value[_iter_pkis_int] }}"
+
+  - set_fact:
+      _cur_ca: "{{ _cur_intermed }}"
+      _ca_title: "intermediate({{ _cur_intermed.name }})"
+
+  - include_tasks: handle_cas.yml
+
+
+  - block:
+
+      - set_fact:
+          _tmp_modargs: >-
+            {{ _cur_intermed._modcfgs.sign_intermed
+             | combine({'csr': _tmp_modres_pki_ca.data.csr})
+            }}
+
+      - name: sign intermediate against parent  ==>>  {{ _cur_intermed.name }}
+        terryhowe.hashivault.hashivault_pki_cert_sign: >-
+          {{ _tmp_modargs }}
+        register: _tmp_modres
+
+
+        ##
+        ## be careful: trying to use newlines here for ansible
+        ##   properly can be very tricky to not get "\\n" as result,
+        ##   this variant here works, see also:
+        ##
+        ##     https://github.com/brlin-tw/ansible-newline-join-problem
+        ##
+      - set_fact:
+          _tmp_cert_chain: "{{ _tmp_modres.data.ca_chain | join(\"\n\") }}"
+
+      - set_fact:
+          _tmp_modargs: >-
+            {{ _cur_intermed._modcfgs.set_signed | combine(
+                 {'certificate': _tmp_cert_chain}
+               )
+            }}
+
+      - name: set signed intermediate  ==>>  {{ _cur_intermed.name }}
+        terryhowe.hashivault.hashivault_pki_set_signed: >-
+          {{ _tmp_modargs }}
+
+    when: _tmp_modres_pki_ca.changed is truthy
+

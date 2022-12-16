@@ -1,0 +1,64 @@
+---
+
+##  - block:
+##
+##      - set_fact:
+##          _hvault_mp: "{{ _iter_pkis.value.engine.mount_point }}"
+##          _smabot_hvault_polname_prefix: "pki_seng{{ _iter_pkis.key }}_"
+##
+##
+##      - include_tasks: handle_policies.yml
+##        loop: >-
+##          {{ _iter_pkis.value.default_policies.dirs
+##           | dict2items }}
+##        loop_control:
+##          loop_var: _iter_poldirs
+## 
+##
+##
+##      - include_tasks: handle_policy.yml
+##        loop: >-
+##          {{ _iter_pkis.value.default_policies.policies
+##           | dict2items | map(attribute="value")
+##           | smabot.hashivault.policies_from_files(
+##               policy_cfg=smabot_hashivault_config_instance_args_normed.policies,
+##               dircfg={}
+##           ) }}
+##        loop_control:
+##          loop_var: _iter_policies
+##
+##
+##      - set_fact:
+##          _smabot_hvault_polname_prefix: ''
+##
+##    when: _iter_pkis.value.default_policies.get('enabled', False)
+
+
+
+  ##handle root ca
+  - set_fact:
+      _cur_ca: "{{ _iter_pkis.value.root_ca }}"
+      _ca_title: root
+
+  - include_tasks: handle_cas.yml
+
+
+  ##handle intermediates
+  - include_tasks: handle_pki_intermed_trees.yml
+    loop: >-
+      {{ _iter_pkis.value.intermeds.trees
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_pkis_int_trees
+
+
+  ##handle issuer roles
+  - name: create/modify/delete issuer role
+    terryhowe.hashivault.hashivault_pki_role: >-
+      {{ _iter_pkis_roles.value.config }}
+    loop: >-
+      {{ _iter_pkis.value.issuer_roles.roles
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_pkis_roles
+
