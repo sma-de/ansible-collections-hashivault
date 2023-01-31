@@ -33,3 +33,15 @@
       smabot_hashivault_agent_dockcomp_args: >-
         {{ smabot_hashivault_ssl_cert_agent_args_normed.agent }}
 
+
+  - name: init role return value
+    set_fact:
+      smabot_hashivault_ssl_cert_agent_result:
+        access_groups: []
+
+
+  - ansible.builtin.include_tasks: collect_certdir_stats.yml
+    loop: "{{ smabot_hashivault_ssl_cert_agent_args_normed._cert_basedirs }}"
+    loop_control:
+      loop_var: _iter_certdirs
+

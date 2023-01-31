@@ -1,0 +1,13 @@
+---
+
+  - include_tasks: handle_oidc_backend_roles.yml
+    loop: >-
+      {{ _iter_oidc_auth.oidc.backend_roles | dict2items }}
+    loop_control:
+      loop_var: _iter_oidc_backend_role
+
+
+  - name: handle oidc specific method config
+    terryhowe.hashivault.hashivault_oidc_auth_method_config: >-
+      {{ _iter_oidc_auth.oidc.config }}
+

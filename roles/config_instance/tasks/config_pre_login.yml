@@ -1,8 +1,4 @@
 ---
-
-  ## manage generic policies
-  - set_fact:
-      _hvault_pols_init: {}
  
   - include_tasks: handle_policies.yml
     loop: >-
@@ -10,7 +6,7 @@
        | dict2items }}
     loop_control:
       loop_var: _iter_poldirs
- 
+
 
   ## manage auth methods
   - include_tasks: handle_auth_methods/main.yml
@@ -19,6 +15,23 @@
        | dict2items }}
     loop_control:
       loop_var: _iter_auth_methods
+
+
+  - name: collect metadata about all defined auth methods
+    terryhowe.hashivault.hashivault_auth_list:
+    register: _tmpres_authlist
+
+  - set_fact:
+      _hvault_authmeths: >-
+        {{ _tmpres_authlist.backends }}
+
+
+  ## update visible policies to all currently defined ones
+  - set_fact:
+      _hvault_poll_policies: True
+      _hvault_match_policies: False
+
+  - include_tasks: get_matching_policies.yml
 
 
   ## manage approlers, but only the ones necessary pre login (vault managers)

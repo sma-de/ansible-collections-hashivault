@@ -5,17 +5,21 @@
 
 
   - set_fact:
+      _hvault_poll_policies: False
+      _hvault_match_policies: True
+      _hvault_pol_selector: >-
+         {{ _iter_approlers.policies }}
+
+  - include_tasks: get_matching_policies.yml
+
+
+  - set_fact:
       _cur_roler: >-
         {{ _cur_roler
          | combine({
-             'policies': (_hvault_pols_init
-                | smabot.hashivault.finalize_role_policies(
-                    to_merge=[_iter_approlers.policies]
-                  )
-             )
+             'policies': _hvault_matching_pols,
          })
         }}
-    when: _iter_approlers.init_policies
 
 
     ##

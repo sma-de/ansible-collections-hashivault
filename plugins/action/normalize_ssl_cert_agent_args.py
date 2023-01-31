@@ -334,29 +334,28 @@ class CertsInstTargetPathsNormer(NormalizerBase):
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
         sp = my_subcfg['super_pem']
 
-        tmp = os.path.dirname(sp)
+        spdir = os.path.dirname(sp)
 
-        my_subcfg['private_key'] = tmp + '/' + setdefault_none(
+        my_subcfg['private_key'] = spdir + '/' + setdefault_none(
           my_subcfg, 'private_key', 'cert_private_key.pem'
         )
 
-        my_subcfg['only_cert'] = tmp + '/' + setdefault_none(
+        my_subcfg['only_cert'] = spdir + '/' + setdefault_none(
           my_subcfg, 'only_cert', 'cert_only.pem'
         )
 
-        my_subcfg['cert_chained'] = tmp + '/' + setdefault_none(
+        my_subcfg['cert_chained'] = spdir + '/' + setdefault_none(
           my_subcfg, 'cert_chained', 'cert_chained.pem'
         )
 
-        my_subcfg['ca_chain'] = tmp + '/' + setdefault_none(
+        my_subcfg['ca_chain'] = spdir + '/' + setdefault_none(
           my_subcfg, 'ca_chain', 'cert_ca_chain.pem'
         )
 
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=5)
         avp = my_subcfg['autovol_path']
 
         if avp:
-            pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=5)
-
             tmp = os.path.dirname(my_subcfg[avp])
 
             vols = setdefault_none(pcfg['agent']['compose'], 'volumes', {})
@@ -364,6 +363,7 @@ class CertsInstTargetPathsNormer(NormalizerBase):
               'vault_export_dir': True,
             }
 
+        pcfg.setdefault('_cert_basedirs', []).append(spdir)
         return my_subcfg
 
 

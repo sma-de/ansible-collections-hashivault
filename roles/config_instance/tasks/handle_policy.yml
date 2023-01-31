@@ -32,7 +32,15 @@
 
 
   - set_fact:
-      _hvault_pols_init: >-
-        {{  _hvault_pols_init | combine({_cur_pol.name: None}) }}
-    when: _iter_policies.tags.init_pol is defined
+      _policy_meta: >-
+         {{ _policy_meta
+          | smabot.hashivault.update_policy_meta(
+              newpol=_cur_pol, newpol_meta_src=_iter_policies
+            )
+         }}
+
+##  - set_fact:
+##      _hvault_pols_init: >-
+##        {{  _hvault_pols_init | combine({_cur_pol.name: None}) }}
+##    when: _iter_policies.tags.init_pol is defined
 

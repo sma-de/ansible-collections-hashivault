@@ -124,131 +124,6 @@ class SecretCycleCfgFilter(FilterBase):
 
 
 
-class PoliciesFromFilesFilter(FilterBase):
-
-    FILTER_ID = 'policies_from_files'
-
-    @property
-    def argspec(self):
-        tmp = super(PoliciesFromFilesFilter, self).argspec
-
-        tmp.update({
-          'policy_cfg': ([collections.abc.Mapping]),
-          'dircfg': ([collections.abc.Mapping]),
-        })
-
-        return tmp
-
-
-    def run_specific(self, value):
-        if not isinstance(value, list):
-            raise AnsibleOptionsError(
-               "expected a list as filter input, but given value"\
-               " '{}' has type '{}'".format(value, type(value))
-            )
-
-        ##display.vvv("[{}]:: input: {}".format(type(self).FILTER_ID, value))
-
-        polcfg = self.get_taskparam('policy_cfg')
-        dircfg = self.get_taskparam('dircfg')
-        ending = '.hcl.j2'
-
-        res = []
-
-        for x in value:
-            display.vvv(
-               "[{}]:: current input list item: {}".format(
-                  type(self).FILTER_ID, x
-            ))
-
-            if not isinstance(x, collections.abc.Mapping):
-                ## assume simple string file path
-                x = {
-                  'state': 'file',
-                  'src': x,
-                }
-
-            if x.get('state', 'file') != 'file':
-                continue  # we only care about files here
-
-            fp = x['src']
-
-            if not fp.endswith(ending):
-                continue
-
-            rule_id = os.path.basename(fp)
-            rule_id = rule_id[:-len(ending)]
-
-            c = {
-              'name': rule_id,
-              'rules': fp,
-              'state': 'present',
-            }
-
-            display.vvv("[{}]:: item x config: {}".format(type(self).FILTER_ID, str(x.get('config', None))))
-
-            c.update(x.get('config', {}))
-
-            display.vvv("[{}]:: item x post cfg merge: {}".format(type(self).FILTER_ID, str(c)))
-
-            tmp = {
-              'config': c,
-              'tags': dircfg.get('tags', {}),
-            }
-
-            # optionally overwrite rule settings
-            merge_dicts(tmp, polcfg.get(
-                'policy_overwrites', {}
-              ).get(rule_id, {}).get('config', {})
-            )
-
-            res.append(tmp)
-
-        return res
-
-
-class FinalizeRolePoliciesFilter(FilterBase):
-
-    FILTER_ID = 'finalize_role_policies'
-
-    @property
-    def argspec(self):
-        tmp = super(FinalizeRolePoliciesFilter, self).argspec
-
-        tmp.update({
-          'to_merge': ([[collections.abc.Mapping]]),
-        })
-
-        return tmp
-
-
-    def run_specific(self, value):
-        if not isinstance(value, collections.abc.Mapping):
-            raise AnsibleOptionsError(
-               "input value must be a dict type but is of type"\
-               " '{}': {}".format(type(value), value)
-            )
-
-        ##display.vvv("[{}]:: input: {}".format(type(self).FILTER_ID, value))
-
-        # first we need to merge the dicts together without changing
-        # the source dicts
-        value = copy.deepcopy(value)
-
-        for d in self.get_taskparam('to_merge'):
-            merge_dicts(value, copy.deepcopy(d))
-
-        # finally we need to convert input dict into
-        # a flat list of string policy names
-        res = []
-
-        for k in value:
-            res.append(k)
-
-        return res
-
-
-
 class ConvertUpdateCredsParamsFilter(FilterBase):
 
     FILTER_ID = 'convert_update_creds_params'
@@ -357,7 +232,6 @@ class FilterModule(object):
         res = {}
 
         for f in [ChangeLoginMethodFilter, ConvertUpdateCredsParamsFilter,
-          FinalizeRolePoliciesFilter, PoliciesFromFilesFilter,
           SecretCycleCfgFilter
         ]:
             res[f.FILTER_ID] = f()

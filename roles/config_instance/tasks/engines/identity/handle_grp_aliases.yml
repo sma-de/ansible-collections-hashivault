@@ -1,0 +1,16 @@
+---
+
+  - name: map corresponding auth method (key) to the needed metadata
+    set_fact:
+      _tmp_curcfg: >-
+        {{ _iter_id_grp_aliases.value.config
+         | combine({
+             'mount_accessor': _hvault_authmeths[_iter_id_grp_aliases.value.auth_id].accessor,
+           })
+        }}
+
+
+  - name: create or remove vault identity group alias
+    terryhowe.hashivault.hashivault_identity_group_alias: >-
+      {{ _tmp_curcfg }}
+

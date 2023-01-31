@@ -1,5 +1,7 @@
 ---
 
+## TODO: refactor policy config subsystem so that all policies from all the different source are handle once in a combined and uniq fashion
+
     ## support vars.d dirs
   - include_role:
       name: smabot.base.expand_vardirs
@@ -7,11 +9,11 @@
 
   - smabot.hashivault.normalize_config_instance_args:
     register: _tmp_normed_cfg
-    ##no_log: true
+    no_log: true
 
   - set_fact:
       smabot_hashivault_config_instance_args_normed: "{{ _tmp_normed_cfg.normalized }}"
-    ##no_log: true
+    no_log: true
 
 
   - set_fact:
@@ -21,13 +23,9 @@
               ~ '://127.0.0.1:'
               ~ smabot_hashivault_config_instance_args_normed.connection.port }}
 
-
-  - set_fact:
-      _vault_env: >-
-         {{ _vault_env | combine({
-              'VAULT_SKIP_VERIFY': "true",
-         }) }}
-    when: not smabot_hashivault_config_instance_args_normed.connection.validate_certs
+         ## for the local ip connection ssl verify will
+         ## probably fail most of the time
+         VAULT_SKIP_VERIFY: true
 
 
   - block:
@@ -40,6 +38,19 @@
             {{ smabot_hashivault_config_instance_args_normed.initial_config }}
 
     environment: "{{ _vault_env }}"
+
+
+    ## undo bad ssl skips from here on on default
+##  - set_fact: # note: technically this should work also, but it seems there is abug in hashimodules not interpreting explicitly set to false correctly
+##      _vault_env: >-
+##         {{ _vault_env | combine({
+##              'VAULT_SKIP_VERIFY': False,
+##         }) }}
+##    when: smabot_hashivault_config_instance_args_normed.connection.validate_certs
+
+  - set_fact:
+      _vault_env: {}
+    when: smabot_hashivault_config_instance_args_normed.connection.validate_certs
 
 
     ##

@@ -1,0 +1,15 @@
+---
+
+  - name: get ssl base dir stats
+    ansible.builtin.stat:
+      path: "{{ _iter_certdirs }}"
+    register: _tmp_stat_res
+
+
+  - name: update role return value
+    set_fact:
+      smabot_hashivault_ssl_cert_agent_result: >-
+        {{ smabot_hashivault_ssl_cert_agent_result | combine({
+             'access_groups': [_tmp_stat_res.stat.gid],
+           }, list_merge='append') }}
+

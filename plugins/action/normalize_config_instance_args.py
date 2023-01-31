@@ -29,6 +29,7 @@ class ConfigRootNormalizer(NormalizerBase):
           PoliciesNormer(pluginref),
           AppRolersNormer(pluginref),
           PkiInstNormer(pluginref),
+          IdentityNormer(pluginref),
           SecretEnginesNormer(pluginref),
           LoginNormer(pluginref),
         ]
@@ -61,6 +62,192 @@ class InstDefPolInstNormer(NormalizerNamed):
     @property
     def name_key(self):
         return 'src'
+
+
+class IdentityNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          IdentityEngineNormer(pluginref),
+          IdentityGroupInstNormer(pluginref),
+        ]
+
+        super(IdentityNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        # TODO: norm entities
+        self.default_setters['entities'] = DefaultSetterConstant({})
+
+    @property
+    def config_path(self):
+        return ['identity']
+
+
+class IdentityGroupInstNormer(NormalizerNamed):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          IdGrpAliasMapperInstNormer(pluginref),
+          EntityPolAttachNormer(pluginref),
+        ]
+
+        super(IdentityGroupInstNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['type'] = DefaultSetterConstant('internal')
+        self.default_setters['config'] = DefaultSetterConstant({})
+
+    @property
+    def config_path(self):
+        return ['groups', SUBDICT_METAKEY_ANY]
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        c = my_subcfg['config']
+
+        setdefault_none(c, 'state', 'present')
+        c['group_type'] = my_subcfg['type']
+        c['name'] = my_subcfg['name']
+
+        return my_subcfg
+
+
+class EntityPolAttachNormer(NormalizerNamed):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(EntityPolAttachNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['type'] = DefaultSetterConstant('name')
+        self.default_setters['exclude'] = DefaultSetterConstant(False)
+
+    @property
+    def config_path(self):
+        return ['policies', SUBDICT_METAKEY_ANY]
+
+    def _type_specific_norm_common_multimatch(self, cfg, my_subcfg, cfgpath_abs):
+        mo = my_subcfg.get('match_opts', None)
+
+        if not mo:
+            # default match opts to expect at least one
+            # match and allow arbitrary many (for mandatory policies)
+            mo = {
+              'cnt_min': 1,
+              'cnt_max': None,
+            }
+
+            if not my_subcfg['mandatory']:
+                # if pol is not mandatory means not matching
+                # anything is also fine
+                mo['cnt_min'] = 0
+
+        my_subcfg['match_opts'] = mo
+
+    def _type_specific_norming_regex(self, cfg, my_subcfg, cfgpath_abs):
+        self._type_specific_norm_common_multimatch(cfg, my_subcfg, cfgpath_abs)
+
+    def _type_specific_norming_tag(self, cfg, my_subcfg, cfgpath_abs):
+        self._type_specific_norm_common_multimatch(cfg, my_subcfg, cfgpath_abs)
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        # includes are on default mandatory while excludes are
+        # on default optional
+        setdefault_none(my_subcfg, 'mandatory', not my_subcfg['exclude'])
+
+        t = my_subcfg['type']
+
+        tmp = getattr(self, '_type_specific_norming_' + t, None)
+
+        if tmp:
+            tmp(cfg, my_subcfg, cfgpath_abs)
+
+        return my_subcfg
+
+
+class IdentityEngineNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(IdentityEngineNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['options'] = DefaultSetterConstant({})
+
+    @property
+    def config_path(self):
+        return ['engine']
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        eng_id = 'identity'
+        my_subcfg['type'] = eng_id
+        my_subcfg['mount_point'] = None
+
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=2)
+
+        tmp = setdefault_none(pcfg, 'secret_engines', {})
+        tmp = setdefault_none(tmp, 'engines', {})
+
+        unset = object()
+        t2 = tmp.get(eng_id, unset)
+
+        ansible_assert(t2 == unset,
+            "found secret engine with reserved id '{}' inside secret"\
+            " engine config section, this is not allowed, use special"\
+            " cfg path 'identity.engine' instead:\n{}".format(eng_id, t2)
+        )
+
+        ## add identity config to managed engines submap, note as
+        ## identity always exists, cannot be disabled or moved,
+        ## the only reason to "really manage" this engine if we
+        ## have custom options to set
+        if my_subcfg['options']:
+            tmp[eng_id] = my_subcfg
+
+        return my_subcfg
+
+
+class IdGrpAliasMapperInstNormer(NormalizerNamed):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(IdGrpAliasMapperInstNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['config'] = DefaultSetterConstant({})
+
+    @property
+    def name_key(self):
+        return "auth_id"
+
+    @property
+    def config_path(self):
+        return ['mapped_aliases', SUBDICT_METAKEY_ANY]
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        toplvl = self.get_parentcfg(cfg, cfgpath_abs, level=5)
+        authcfg = toplvl['auth_methods']['authers'][my_subcfg['auth_id']]
+
+        my_subcfg['auth_id'] = authcfg['mount_point'] + '/'
+        my_subcfg['auth_cfg'] = authcfg
+
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=2)
+
+        # on default uses the same name for group and its alias,
+        # note that alias names are "magic" (must be identical to
+        # external auth source group name)
+        setdefault_none(my_subcfg, 'name', pcfg['name'])
+
+        c = my_subcfg['config']
+        setdefault_none(c, 'state', 'present')
+
+        c['name'] = my_subcfg['name']
+        c['group_name'] = pcfg['name']
+
+        return my_subcfg
 
 
 class PkiInstNormer(NormalizerNamed):
@@ -1503,15 +1690,54 @@ class EngineInstDefPolsNormer(InstDefaultPolsNormerBase):
            pluginref, *args, **kwargs
         )
 
+        self.default_setters['enabled'] = DefaultSetterConstant(True)
+
         self.default_setters['dirs'] = DefaultSetterConstant({
           'templates/vault_policies/engine_defaults': None,
         })
 
         self.default_setters['policies'] = DefaultSetterConstant({
           'templates/vault_policies/manage_secret_engine.hcl.j2': {
+             'tags': { 'super_user': None },
              'config': { 'name': 'manage' },
           },
         })
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        setdefault_none(my_subcfg, 'common_prefix',
+          "seng_{}_".format(cfgpath_abs[-2])
+        )
+
+        return my_subcfg
+
+    def _handle_specifics_postsub(self, cfg, my_subcfg, cfgpath_abs):
+        # if a managing role for this engine is defined make sure superuser get attached to it
+        toplvl = self.get_parentcfg(cfg, cfgpath_abs, level=4)
+        cp = my_subcfg['common_prefix']
+
+        for k,v in my_subcfg['policies'].items():
+            tmp = v.get('config', {}).get('name', None)
+
+            if not tmp:
+                # name must be explicitly given to use this workaround
+                continue
+
+            vn = cp + tmp
+
+            tmp = v.get('tags', None)
+
+            if not tmp:
+                # no need for this when no tags are specified for given policy
+                continue
+
+            toplvl['policies']['policy_meta'][vn] = {
+              "matcher": vn,
+              "meta": {
+                 "tags": tmp,
+              }
+            }
+
+        return my_subcfg
 
 
 class PkiInstDefPolsNormer(InstDefaultPolsNormerBase):
@@ -1578,6 +1804,7 @@ class AppRolersInstNormer(NormalizerNamed):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
           (UpdateCredsNormer, True),
+          EntityPolAttachNormer(pluginref),
         ]
 
         super(AppRolersInstNormer, self).__init__(
@@ -1585,7 +1812,7 @@ class AppRolersInstNormer(NormalizerNamed):
         )
 
         self.default_setters['update_creds'] = DefaultSetterConstant(False)
-        self.default_setters['init_policies'] = DefaultSetterConstant(False)
+        self.default_setters['super_user'] = DefaultSetterConstant(False)
         self.default_setters['vault_manager'] = DefaultSetterConstant(False)
         self.default_setters['policies'] = DefaultSetterConstant({})
 
@@ -1595,14 +1822,19 @@ class AppRolersInstNormer(NormalizerNamed):
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
         if my_subcfg['vault_manager']:
-            my_subcfg['init_policies'] = True
+            my_subcfg['super_user'] = True
+
+        if my_subcfg['super_user']:
+            my_subcfg['policies']['_super_user_pols'] = {
+              'type': 'tag',
+              'name': 'super_user',
+            }
 
         pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=3)
 
         c = {
           'name': my_subcfg['name'],
           'mount_point': pcfg['auth_methods']['authers'][my_subcfg['auther']]['mount_point'],
-          'policies': my_subcfg['policies'],
           'state': 'present',
         }
 
@@ -1641,6 +1873,7 @@ class AuthMethodInstNormer(NormalizerNamed):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
           AuthMethodPolicyNormer(pluginref),
+          (AuthMethodOidcNormer, True),
         ]
 
         super(AuthMethodInstNormer, self).__init__(
@@ -1648,6 +1881,7 @@ class AuthMethodInstNormer(NormalizerNamed):
         )
 
         self.default_setters['extra_opts'] = DefaultSetterConstant({})
+        self.default_setters['default_login'] = DefaultSetterConstant(False)
 
     @property
     def config_path(self):
@@ -1660,6 +1894,9 @@ class AuthMethodInstNormer(NormalizerNamed):
         )
 
         return my_subcfg
+
+##    def _type_specific_norming_oidc(self, cfg, my_subcfg, cfgpath_abs):
+##        return my_subcfg
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
         mytype = setdefault_none(my_subcfg, 'type', my_subcfg['name'])
@@ -1693,12 +1930,98 @@ class AuthMethodInstNormer(NormalizerNamed):
 
         c['config'] = my_subcfg['extra_opts']
 
+        if my_subcfg['default_login']:
+            c['config']['listing_visibility'] = "unauth"
+
         if not c['config']:
             c.pop('config')
 
-        tmp = getattr(self, '_type_specific_norming_' + mytype, None)
-        if tmp:
-            my_subcfg = tmp(cfg, my_subcfg, cfgpath_abs)
+        ##tmp = getattr(self, '_type_specific_norming_' + mytype, None)
+        ##if tmp:
+        ##    my_subcfg = tmp(cfg, my_subcfg, cfgpath_abs)
+
+        return my_subcfg
+
+
+class AuthMethodOidcNormer(NormalizerBase):
+
+    NORMER_CONFIG_PATH = ['oidc']
+
+    def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          AuthMethodOidcRoleInstNormer(pluginref),
+        ]
+
+        super(AuthMethodOidcNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['config'] = DefaultSetterConstant({})
+
+    @property
+    def config_path(self):
+        return self.NORMER_CONFIG_PATH
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs)
+
+        c = my_subcfg['config']
+
+        c['oidc_discovery_url'] = my_subcfg['discovery_url']
+        c['oidc_client_id'] = my_subcfg['client_id']
+        c['oidc_client_secret'] = my_subcfg['client_secret']
+        c['mount_point'] = pcfg['mount_point']
+
+        return my_subcfg
+
+    def _handle_specifics_postsub(self, cfg, my_subcfg, cfgpath_abs):
+        def_roles = []
+
+        for k,v in my_subcfg['backend_roles'].items():
+            if v['default']:
+                def_roles.append(v)
+
+        ansible_assert(len(def_roles) < 2,
+           "Bad config for OIDC auth method '{}': There can only be"\
+           " maximal one default role per auth method, but found"\
+           " '{}': {}".format(cfgpath_abs, len(def_roles), def_roles)
+        )
+
+        if def_roles:
+            my_subcfg['config']['default_role'] = def_roles[0]['name']
+
+        return my_subcfg
+
+
+class AuthMethodOidcRoleInstNormer(NormalizerNamed):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(AuthMethodOidcRoleInstNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['default'] = DefaultSetterConstant(None)
+        self.default_setters['config'] = DefaultSetterConstant({})
+
+    @property
+    def config_path(self):
+        return ['backend_roles', SUBDICT_METAKEY_ANY]
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=3)
+
+        all_roles = self.get_parentcfg(cfg, cfgpath_abs)
+
+        # default "default" role attribute to False, except when we
+        # have just one role, then default it to true
+        setdefault_none(my_subcfg, 'default', len(all_roles) == 1)
+
+        c = my_subcfg['config']
+
+        setdefault_none(c, 'state', 'present')
+        c['name'] = my_subcfg['name']
+        c['mount_point'] = pcfg['mount_point']
 
         return my_subcfg
 
@@ -1817,6 +2140,8 @@ class PoliciesNormer(NormalizerBase):
            pluginref, *args, **kwargs
         )
 
+        self.default_setters['policy_meta'] = DefaultSetterConstant({})
+
     @property
     def config_path(self):
         return ['policies']
@@ -1844,7 +2169,7 @@ class PolicySourceDirsNormer(NormalizerBase):
             for x in ['basic', 'admin']:
                 my_subcfg['dirs']['templates/vault_policies/{}'.format(x)] = {
                   'tags': {
-                     'init_pol': None
+                     'super_user': None
                   },
                 }
 
@@ -1889,9 +2214,9 @@ class ActionModule(ConfigNormalizerBaseMerger):
     def __init__(self, *args, **kwargs):
         super(ActionModule, self).__init__(ConfigRootNormalizer(self), 
             *args, default_merge_vars=[
-               'smabot_hashivault_config_instance_args_extra'
+               'smabot_hashivault_config_instance_args_defaults'
             ],
-            ##extra_merge_vars_ans=['smabot_hashivault_config_instance_args_extra'],
+            extra_merge_vars_ans=['smabot_hashivault_config_instance_args_extra'],
             **kwargs
         )
 

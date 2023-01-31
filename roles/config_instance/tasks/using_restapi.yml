@@ -51,6 +51,8 @@
 
   - set_fact:
       _approle_creds: {}
+      _policy_meta: >-
+         {{ smabot_hashivault_config_instance_args_normed.policies.policy_meta }}
 
 
   - block:

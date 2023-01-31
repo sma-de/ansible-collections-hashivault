@@ -1,0 +1,32 @@
+---
+
+  - set_fact:
+      _hvault_poll_policies: False
+      _hvault_match_policies: True
+      _hvault_pol_selector: >-
+         {{ _iter_id_grps.value.policies }}
+
+  - include_tasks: get_matching_policies.yml
+
+
+  - set_fact:
+      _tmp_grpcfg: >-
+         {{ _iter_id_grps.value.config
+          | combine({
+              'policies': _hvault_matching_pols,
+            })
+         }}
+
+
+  - name: create or delete vault identity group
+    terryhowe.hashivault.hashivault_identity_group: >-
+      {{ _tmp_grpcfg }}
+
+
+  - include_tasks: handle_grp_aliases.yml
+    loop: >-
+      {{ _iter_id_grps.value.mapped_aliases
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_id_grp_aliases
+

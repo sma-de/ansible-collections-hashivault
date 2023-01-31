@@ -1,0 +1,14 @@
+---
+
+  # create entities
+  # TODO
+
+
+  # handle groups
+  - include_tasks: handle_groups.yml
+    loop: >-
+      {{ smabot_hashivault_config_instance_args_normed.identity.groups
+       | dict2items }}
+    loop_control:
+      loop_var: _iter_id_grps
+

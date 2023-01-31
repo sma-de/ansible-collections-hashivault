@@ -1,0 +1,29 @@
+---
+
+  - block:
+
+      - name: get all defined policies
+        terryhowe.hashivault.hashivault_policy_list:
+        register: _tmpres_all_policies
+
+      - set_fact:
+          _vault_policies: >-
+             {{ _tmpres_all_policies.policies
+                | smabot.hashivault.attach_policy_meta(
+                    pols_meta=_policy_meta,
+                )
+             }}
+
+    when: _hvault_poll_policies | default(True)
+
+
+  - name: determine all matching policies
+    set_fact:
+      _hvault_matching_pols: >-
+         {{ _hvault_pol_selector
+            | smabot.hashivault.select_policies(
+                existing_pols=_vault_policies,
+              )
+         }}
+    when: _hvault_match_policies | default(True)
+

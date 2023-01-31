@@ -1,0 +1,7 @@
+---
+
+    # TODO: module bug: updating backup role atm not working
+  - name: create or delete oidc backend role
+    terryhowe.hashivault.hashivault_oidc_auth_role: >-
+      {{ _iter_oidc_backend_role.value.config }}
+

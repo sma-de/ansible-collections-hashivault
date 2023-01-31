@@ -9,6 +9,18 @@
       loop_var: _iter_sengines
 
 
+  ## update visible policies to all currently defined ones
+  - set_fact:
+      _hvault_poll_policies: True
+      _hvault_match_policies: False
+
+  - include_tasks: get_matching_policies.yml
+
+
+  ## manage identity
+  - include_tasks: engines/identity/main.yml
+
+
   ## manage pki's
   - include_tasks: engines/pki/handle_pkis.yml
     loop: >-
@@ -34,4 +46,13 @@
        | dict2items | map(attribute="value") | selectattr('type', '==', 'cert') }}
     loop_control:
       loop_var: _iter_cert_auth
+
+
+  ## manage auth method specifis for oidc based auth
+  - include_tasks: handle_auth_methods/oidc_specifics.yml
+    loop: >-
+      {{ smabot_hashivault_config_instance_args_normed.auth_methods.authers
+       | dict2items | map(attribute="value") | selectattr('type', '==', 'oidc') }}
+    loop_control:
+      loop_var: _iter_oidc_auth
 
