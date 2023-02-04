@@ -48,11 +48,11 @@
       loop_var: _iter_cert_auth
 
 
-  ## manage auth method specifis for oidc based auth
+  ## manage auth method specifis for oidc/jwt based auth
   - include_tasks: handle_auth_methods/oidc_specifics.yml
     loop: >-
       {{ smabot_hashivault_config_instance_args_normed.auth_methods.authers
-       | dict2items | map(attribute="value") | selectattr('type', '==', 'oidc') }}
+       | dict2items | map(attribute="value") | selectattr('type', 'in', ['oidc', 'jwt']) }}
     loop_control:
       loop_var: _iter_oidc_auth
 

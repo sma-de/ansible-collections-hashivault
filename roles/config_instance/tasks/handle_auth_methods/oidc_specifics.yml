@@ -2,12 +2,13 @@
 
   - include_tasks: handle_oidc_backend_roles.yml
     loop: >-
-      {{ _iter_oidc_auth.oidc.backend_roles | dict2items }}
+      {{ _iter_oidc_auth._jwt_or_oidc.backend_roles | dict2items
+       | map(attribute="value") | selectattr('enabled') }}
     loop_control:
       loop_var: _iter_oidc_backend_role
 
 
   - name: handle oidc specific method config
     terryhowe.hashivault.hashivault_oidc_auth_method_config: >-
-      {{ _iter_oidc_auth.oidc.config }}
+      {{ _iter_oidc_auth._jwt_or_oidc.config }}
 

@@ -1874,6 +1874,7 @@ class AuthMethodInstNormer(NormalizerNamed):
         subnorms += [
           AuthMethodPolicyNormer(pluginref),
           (AuthMethodOidcNormer, True),
+          (AuthMethodJwtNormer, True),
         ]
 
         super(AuthMethodInstNormer, self).__init__(
@@ -1943,9 +1944,7 @@ class AuthMethodInstNormer(NormalizerNamed):
         return my_subcfg
 
 
-class AuthMethodOidcNormer(NormalizerBase):
-
-    NORMER_CONFIG_PATH = ['oidc']
+class AuthMethodOidcOrJwtBaseNormer(NormalizerBase):
 
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
@@ -1953,24 +1952,16 @@ class AuthMethodOidcNormer(NormalizerBase):
           AuthMethodOidcRoleInstNormer(pluginref),
         ]
 
-        super(AuthMethodOidcNormer, self).__init__(
+        super(AuthMethodOidcOrJwtBaseNormer, self).__init__(
            pluginref, *args, **kwargs
         )
 
         self.default_setters['config'] = DefaultSetterConstant({})
 
-    @property
-    def config_path(self):
-        return self.NORMER_CONFIG_PATH
-
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
         pcfg = self.get_parentcfg(cfg, cfgpath_abs)
 
         c = my_subcfg['config']
-
-        c['oidc_discovery_url'] = my_subcfg['discovery_url']
-        c['oidc_client_id'] = my_subcfg['client_id']
-        c['oidc_client_secret'] = my_subcfg['client_secret']
         c['mount_point'] = pcfg['mount_point']
 
         return my_subcfg
@@ -1991,18 +1982,80 @@ class AuthMethodOidcNormer(NormalizerBase):
         if def_roles:
             my_subcfg['config']['default_role'] = def_roles[0]['name']
 
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs)
+        pcfg['_jwt_or_oidc'] = my_subcfg
+
+        return my_subcfg
+
+
+class AuthMethodJwtNormer(AuthMethodOidcOrJwtBaseNormer):
+
+    NORMER_CONFIG_PATH = ['jwt']
+
+    @property
+    def config_path(self):
+        return self.NORMER_CONFIG_PATH
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        my_subcfg = super(AuthMethodJwtNormer, self)._handle_specifics_presub(
+          cfg, my_subcfg, cfgpath_abs
+        )
+
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs)
+
+        c = my_subcfg['config']
+
+        tmp = c.get('jwks_url', None)
+        if tmp:
+            tmp = urlparse(tmp)
+
+            ## note: netloc seems more correct here (hostname + port), but it also might just be hostname
+            setdefault_none(c, 'bound_issuer', tmp.netloc)
+            ##setdefault_none(c, 'bound_issuer', tmp.hostname)
+
+        return my_subcfg
+
+
+class AuthMethodOidcNormer(AuthMethodOidcOrJwtBaseNormer):
+
+    NORMER_CONFIG_PATH = ['oidc']
+
+    @property
+    def config_path(self):
+        return self.NORMER_CONFIG_PATH
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        my_subcfg = super(AuthMethodOidcNormer, self)._handle_specifics_presub(
+          cfg, my_subcfg, cfgpath_abs
+        )
+
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs)
+
+        c = my_subcfg['config']
+
+        c['oidc_discovery_url'] = my_subcfg['discovery_url']
+        c['oidc_client_id'] = my_subcfg['client_id']
+        c['oidc_client_secret'] = my_subcfg['client_secret']
+
         return my_subcfg
 
 
 class AuthMethodOidcRoleInstNormer(NormalizerNamed):
 
     def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          ##OidcRoleTemplateInstNormer(pluginref),
+          EntityPolAttachNormer(pluginref),
+        ]
+
         super(AuthMethodOidcRoleInstNormer, self).__init__(
            pluginref, *args, **kwargs
         )
 
         self.default_setters['default'] = DefaultSetterConstant(None)
         self.default_setters['config'] = DefaultSetterConstant({})
+        self.default_setters['enabled'] = DefaultSetterConstant(True)
 
     @property
     def config_path(self):
@@ -2022,9 +2075,16 @@ class AuthMethodOidcRoleInstNormer(NormalizerNamed):
         setdefault_none(c, 'state', 'present')
         c['name'] = my_subcfg['name']
         c['mount_point'] = pcfg['mount_point']
+        c['role_type'] = pcfg['type']
 
         return my_subcfg
 
+##    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+##        # dont apply roles directly which are used as templates
+##        if my_subcfg['templates']:
+##            my_subcfg['enabled'] = False
+##
+##        return my_subcfg
 
 class AuthMethodInstCertInstNormer(NormalizerNamed):
 
