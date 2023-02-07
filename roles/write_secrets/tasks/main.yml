@@ -1,0 +1,50 @@
+---
+
+  - smabot.hashivault.normalize_write_secrets_args:
+    register: _tmp_normed_cfg
+    no_log: true
+
+  - set_fact:
+      smabot_hashivault_write_secrets_args_normed: "{{ _tmp_normed_cfg.normalized }}"
+    no_log: true
+
+
+  - set_fact:
+      _vault_env: {}
+
+  - block:
+
+      - set_fact:
+          _tmp_role_call_args: >-
+            {{ smabot_hashivault_login_args | default({}, True)
+             | combine(smabot_hashivault_write_secrets_args_normed.login,
+                 recursive=True, list_merge='append'
+             ) }}
+
+
+      - name: handle vault login
+        ansible.builtin.include_role:
+          name: smabot.hashivault.vault_login
+        vars:
+          smabot_hashivault_login_args: >-
+            {{ _tmp_role_call_args }}
+
+
+      - set_fact:
+          _vault_env: "{{ smabot_hashivault_connection_env }}"
+
+    when: smabot_hashivault_write_secrets_args_normed.login.enabled
+
+
+  - block:
+
+      - include_tasks: write_secret.yml
+        loop: >-
+          {{ smabot_hashivault_write_secrets_args_normed.secrets
+           | dict2items()
+          }}
+        loop_control:
+          loop_var: _iter_secrets
+
+    environment: "{{ _vault_env }}"
+

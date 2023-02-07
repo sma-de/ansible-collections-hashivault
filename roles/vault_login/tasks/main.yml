@@ -60,3 +60,22 @@
          | combine({'token': _tmp_login.login.token}) }}
     no_log: true
 
+
+  - set_fact:
+      smabot_hashivault_connection_env:
+        VAULT_ADDR: >-
+          {{ smabot_hashivault_login_args_normed.server_url }}
+        VAULT_TOKEN: >-
+          {{ _tmp_login.login.token }}
+    no_log: true
+
+
+  - set_fact:
+      smabot_hashivault_connection_env: >-
+        {{ smabot_hashivault_connection_env
+         | combine({'VAULT_SKIP_VERIFY': True}) }}
+    no_log: true
+    when: >-
+      not (smabot_hashivault_login_args_normed.connection.validate_certs
+      | default(True))
+
