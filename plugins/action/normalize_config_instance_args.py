@@ -25,7 +25,7 @@ class ConfigRootNormalizer(NormalizerBase):
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
-          AuthMethodInstNormer(pluginref),
+          AuthMethodsNormer(pluginref),
           PoliciesNormer(pluginref),
           AppRolersNormer(pluginref),
           PkiInstNormer(pluginref),
@@ -1821,6 +1821,24 @@ class AppRolersInstNormer(NormalizerNamed):
         return ['approlers', SUBDICT_METAKEY_ANY]
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        auther = my_subcfg.get('auther', None)
+
+        if not auther:
+            # use default auther for type approle when avaible
+            pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=3)
+            auther = pcfg['auth_methods']['type_defaults'].get('approle', None)
+
+            ansible_assert(auther,
+               "Failed to default 'auther' for approler '{}' as no"\
+               " default auth method config found for type 'approle',"\
+               " so either set 'auther' for this approler explicitly or"\
+               " mark an approle auth method as default".format(
+                  my_subcfg['name']
+               )
+            )
+
+            my_subcfg['auther'] = auther
+
         if my_subcfg['vault_manager']:
             my_subcfg['super_user'] = True
 
@@ -1834,7 +1852,7 @@ class AppRolersInstNormer(NormalizerNamed):
 
         c = {
           'name': my_subcfg['name'],
-          'mount_point': pcfg['auth_methods']['authers'][my_subcfg['auther']]['mount_point'],
+          'mount_point': pcfg['auth_methods']['authers'][auther]['mount_point'],
           'state': 'present',
         }
 
@@ -1867,6 +1885,71 @@ class UpdateCredsNormer(NormalizerBase):
         return self.NORMER_CONFIG_PATH
 
 
+class AuthMethodsNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          AuthMethodInstNormer(pluginref),
+        ]
+
+        super(AuthMethodsNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+    @property
+    def config_path(self):
+        return ['auth_methods']
+
+    def _handle_specifics_postsub(self, cfg, my_subcfg, cfgpath_abs):
+        type_defmap = {}
+        type_defmap_fallback = {}
+
+        # handle auth type defaults
+        for k,v in my_subcfg['authers'].items():
+            at = v['type']
+            td = v['type_default']
+
+            if td:
+                tmp = type_defmap(at, None)
+
+                ansible_assert(not tmp,
+                   "There can only be one auth type default per auth"\
+                   " type, but found at least two for auth type"\
+                   " '{}': {}".format(at, [tmp, k])
+                )
+
+                type_defmap[at] = k
+            else:
+                # gurantee every defined auth type is contained in map,
+                # even when no auther for this type is explicitly defaulted
+                type_defmap.setdefault(at, None)
+
+            if v['mount_point'] == at:
+                type_defmap_fallback[at] = k
+
+        valid_defaults = {}
+
+        for at in list(type_defmap.keys()):
+            v = type_defmap[at]
+
+            if v:
+                # explicitly set type default found, nothing to do here
+                valid_defaults[at] = v
+                continue
+
+            # when no type default was set explicitly, will auto set the
+            # auther to type default which mountpoint is identical to its
+            # type if there exists one, e.g. oidc => oidc, approle => approle
+            v = type_defmap_fallback.get(at, None)
+
+            if v:
+                valid_defaults[at] = v
+
+        my_subcfg['type_defaults'] = valid_defaults
+        return my_subcfg
+
+
 class AuthMethodInstNormer(NormalizerNamed):
 
     def __init__(self, pluginref, *args, **kwargs):
@@ -1883,10 +1966,11 @@ class AuthMethodInstNormer(NormalizerNamed):
 
         self.default_setters['extra_opts'] = DefaultSetterConstant({})
         self.default_setters['default_login'] = DefaultSetterConstant(False)
+        self.default_setters['type_default'] = DefaultSetterConstant(False)
 
     @property
     def config_path(self):
-        return ['auth_methods', 'authers', SUBDICT_METAKEY_ANY]
+        return ['authers', SUBDICT_METAKEY_ANY]
 
     def _type_specific_norming_cert(self, cfg, my_subcfg, cfgpath_abs):
         ## cert based auth has some special subtree keys to handle
