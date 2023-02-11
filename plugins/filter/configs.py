@@ -140,13 +140,8 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
         return tmp
 
 
-    def _conv_method_azure_keyvault(self, value, upload_creds, cfg):
+    def _conv_method_azure_keyvault(self, value, upload_creds, cfg, name_pfx):
         secret_cfgs = {}
-
-        name_template = cfg['name_template']
-        name_pfx = name_template.format(
-          upload_creds['type'], upload_creds['name']
-        )
 
         for k,v in upload_creds['creds'].items():
             n = (name_pfx + '_' + k).replace('_', '-')
@@ -160,6 +155,24 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
         }
 
         return value
+
+
+    def _conv_method_hashivault(self, value, upload_creds, cfg, name_pfx):
+        tmp = copy.deepcopy(value['secret_def'])
+        tmp['data'] = upload_creds['creds']
+
+        secret_cfg = {
+          'secrets': {
+             'auto_upload_hvault_cred_' + name_pfx: tmp
+          }
+        }
+
+        tmp = value.get('login', None)
+
+        if tmp:
+            secret_cfg['login'] = tmp
+
+        return secret_cfg
 
 
     def run_specific(self, value):
@@ -182,7 +195,17 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
           "Unsupported method '{}'".format(cfg['method'])
         )
 
-        value = conv_fn(value, self.get_taskparam('upload_creds'), cfg)
+        upload_creds = self.get_taskparam('upload_creds')
+
+        name_template = cfg['name_template']
+        name_pfx = name_template.format(
+          upload_creds['type'], upload_creds['name']
+        )
+
+        value = conv_fn(
+          value, upload_creds, cfg, name_pfx
+        )
+
         return value
 
 

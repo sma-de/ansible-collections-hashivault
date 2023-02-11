@@ -14,7 +14,11 @@ from ansible.errors import AnsibleOptionsError
 from ansible_collections.smabot.base.plugins.module_utils.plugins.plugin_base import default_param_value
 from ansible_collections.smabot.base.plugins.module_utils.plugins.config_normalizing.base import ConfigNormalizerBaseMerger, NormalizerBase, NormalizerNamed, DefaultSetterConstant, DefaultSetterOtherKey
 
-from ansible_collections.smabot.base.plugins.module_utils.utils.dicting import SUBDICT_METAKEY_ANY, setdefault_none, get_subdict
+from ansible_collections.smabot.base.plugins.module_utils.utils.dicting import \
+  get_subdict, \
+  merge_dicts, \
+  setdefault_none, \
+  SUBDICT_METAKEY_ANY
 
 from ansible_collections.smabot.base.plugins.module_utils.utils.utils import ansible_assert
 
@@ -32,6 +36,9 @@ class ConfigRootNormalizer(NormalizerBase):
           IdentityNormer(pluginref),
           SecretEnginesNormer(pluginref),
           LoginNormer(pluginref),
+
+          # depends on login being normed before
+          AppRolersInstLateNormer(pluginref),
         ]
 
         super(ConfigRootNormalizer, self).__init__(pluginref, *args, **kwargs)
@@ -1798,6 +1805,23 @@ class AppRolersNormer(NormalizerNamed):
         return my_subcfg
 
 
+class AppRolersInstLateNormer(NormalizerNamed):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          (UpdateCredsNormerLate, True),
+        ]
+
+        super(AppRolersInstLateNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+    @property
+    def config_path(self):
+        return ['approlers', 'approlers', SUBDICT_METAKEY_ANY]
+
+
 class AppRolersInstNormer(NormalizerNamed):
 
     def __init__(self, pluginref, *args, **kwargs):
@@ -1883,6 +1907,39 @@ class UpdateCredsNormer(NormalizerBase):
     @property
     def config_path(self):
         return self.NORMER_CONFIG_PATH
+
+
+class UpdateCredsNormerLate(NormalizerBase):
+
+    NORMER_CONFIG_PATH = ['update_creds']
+
+    @property
+    def config_path(self):
+        return self.NORMER_CONFIG_PATH
+
+    def _handle_method_specifics_self(self, cfg, my_subcfg, cfgpath_abs):
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=4)
+
+        lg = setdefault_none(my_subcfg, 'login', {})
+
+        tmp = setdefault_none(my_subcfg, 'params', {})
+        tmp['login'] = merge_dicts(lg, pcfg['login'])
+
+        # after this normalizing step there should be no difference
+        # anymore between self method and more generic hashivault method
+        my_subcfg['method'] = 'hashivault'
+
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        m = my_subcfg['method']
+
+        if m:
+            m = getattr(self, '_handle_method_specifics_' + m, None)
+
+            if m:
+                m(cfg, my_subcfg, cfgpath_abs)
+
+        return my_subcfg
 
 
 class AuthMethodsNormer(NormalizerBase):
