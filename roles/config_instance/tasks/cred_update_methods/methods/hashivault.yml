@@ -2,10 +2,10 @@
 
   - set_fact:
       smabot_hashivault_write_secrets_args: >-
-        {{ _iter_approlers.update_creds.params
+        {{ _iter_upd_creds.value.params
          | smabot.hashivault.convert_update_creds_params(
              upload_creds=smabot_upload_creds,
-             config=_iter_approlers.update_creds,
+             config=_iter_upd_creds.value,
            )
         }}
     no_log: true

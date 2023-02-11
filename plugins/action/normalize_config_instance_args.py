@@ -1535,14 +1535,13 @@ class LoginCredsNormer(NormalizerBase):
 
 
     def _default_login_from_updcreds_azure_keyvault(self,
-       vaultman, credtype, cfg, my_subcfg, cfgpath_abs
+       login_creds, vaultman, credtype, cfg, my_subcfg, cfgpath_abs
     ):
-        res = copy.deepcopy(vaultman['update_creds'])
-        res.pop('enabled')
+        res = copy.deepcopy(login_creds)
 
         tmp = {}
 
-        ntmpl = vaultman['update_creds']['name_template']
+        ntmpl = login_creds['name_template']
 
         for k in ['id', 'secret', 'login_mount']:
             n = ntmpl.format(credtype, vaultman['config']['name']) + '_' + k
@@ -1574,27 +1573,50 @@ class LoginCredsNormer(NormalizerBase):
             )
 
             tmp = vman['update_creds']
-
-            ansible_assert(tmp['method'],
-              "Defined vaultmanager approle has no update method"\
-              " defined, defaulting login credentials not"\
-              " possible, please specify some explicitly"
+            ansible_assert(tmp,
+              "No credential updating methods defined for vaultmanager"\
+              " approle '{}' which makes defaulting login settings impossible,"\
+              " please specify them explicitly".format(vman['name'])
             )
 
+            login_creds = []
+
+            for k,v in tmp.items():
+                if v['login']:
+                    login_creds.append(v)
+
+            ansible_assert(login_creds,
+              "None of the update credentials methods found ({}) for"\
+              " vaultmanager approle '{}' has the login flag set. As"\
+              " automatic defaulting a login method obviously failed"\
+              " please mark one explicitly as being used for login"\
+              " purposes".format(list(tmp.keys()), vman['name'])
+            )
+
+            ansible_assert(len(login_creds) < 2,
+               "There should be maximal one login flagged credential"\
+               " update method for vaultmanager approle '{}', but"\
+               " found '{}': {}".format(
+                  vman['name'], len(login_creds), login_creds
+               )
+            )
+
+            login_creds = login_creds[0]
+
             deffn = getattr(self,
-              '_default_login_from_updcreds_' + str(tmp['method']),
+              '_default_login_from_updcreds_' + str(login_creds['method']),
               None
             )
 
             ansible_assert(deffn,
-              "Defined vaultmanager approle defined update credential"\
+              "Defined vaultmanager approle '{}' defined update credential"\
               " method '{}' is not supported for defaulting login"\
               " credentials, please specify some explicitly".format(
-                 tmp['method']
+                 vman['name'], login_creds['method']
               )
             )
 
-            deffn(vman, 'approle', cfg, my_subcfg, cfgpath_abs)
+            deffn(login_creds, vman, 'approle', cfg, my_subcfg, cfgpath_abs)
 
         return my_subcfg
 
@@ -1810,7 +1832,7 @@ class AppRolersInstLateNormer(NormalizerNamed):
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
-          (UpdateCredsNormerLate, True),
+          UpdateCredsInstNormerLate(pluginref),
         ]
 
         super(AppRolersInstLateNormer, self).__init__(
@@ -1827,7 +1849,7 @@ class AppRolersInstNormer(NormalizerNamed):
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
-          (UpdateCredsNormer, True),
+          UpdateCredsInstNormer(pluginref),
           EntityPolAttachNormer(pluginref),
         ]
 
@@ -1835,7 +1857,6 @@ class AppRolersInstNormer(NormalizerNamed):
            pluginref, *args, **kwargs
         )
 
-        self.default_setters['update_creds'] = DefaultSetterConstant(False)
         self.default_setters['super_user'] = DefaultSetterConstant(False)
         self.default_setters['vault_manager'] = DefaultSetterConstant(False)
         self.default_setters['policies'] = DefaultSetterConstant({})
@@ -1886,39 +1907,48 @@ class AppRolersInstNormer(NormalizerNamed):
         return my_subcfg
 
 
-class UpdateCredsNormer(NormalizerBase):
-
-    NORMER_CONFIG_PATH = ['update_creds']
+class UpdateCredsInstNormer(NormalizerNamed):
 
     def __init__(self, pluginref, *args, **kwargs):
-        super(UpdateCredsNormer, self).__init__(
+        super(UpdateCredsInstNormer, self).__init__(
            pluginref, *args, **kwargs
         )
 
-        self.default_setters['method'] = DefaultSetterConstant(None)
         self.default_setters['params'] = DefaultSetterConstant({})
-        self.default_setters['enabled'] = DefaultSetterConstant(True)
         self.default_setters['name_template'] = DefaultSetterConstant('hashivault_{}_{}')
 
     @property
-    def simpleform_key(self):
-        return "enabled"
+    def config_path(self):
+        return ['update_creds', SUBDICT_METAKEY_ANY]
+
+    @property
+    def name_key(self):
+        return 'method'
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        tmp = my_subcfg.get('login', None)
+
+        if not tmp:
+            # default login setting (most cases this will be simply false)
+            siblings = self.get_parentcfg(cfg, cfgpath_abs)
+            pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=2)
+
+            # for most cases this will simply be false, except current
+            # approle is marked as vault manager and has just one
+            # update_cred sink defined
+            my_subcfg['login'] = len(siblings) == 1 and pcfg['vault_manager']
+
+        return my_subcfg
+
+
+class UpdateCredsInstNormerLate(NormalizerBase):
 
     @property
     def config_path(self):
-        return self.NORMER_CONFIG_PATH
-
-
-class UpdateCredsNormerLate(NormalizerBase):
-
-    NORMER_CONFIG_PATH = ['update_creds']
-
-    @property
-    def config_path(self):
-        return self.NORMER_CONFIG_PATH
+        return ['update_creds', SUBDICT_METAKEY_ANY]
 
     def _handle_method_specifics_self(self, cfg, my_subcfg, cfgpath_abs):
-        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=4)
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=5)
 
         lg = setdefault_none(my_subcfg, 'login', {})
 

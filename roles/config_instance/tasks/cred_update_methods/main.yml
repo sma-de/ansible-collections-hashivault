@@ -1,0 +1,13 @@
+---
+
+  - set_fact:
+      smabot_upload_creds:
+        creds: "{{ _approle_creds.get(_cur_roler.name) }}"
+        type: approle
+        name: "{{ _cur_roler.name }}"
+    no_log: true
+
+
+  - include_tasks: >-
+      cred_update_methods/methods/{{ _iter_upd_creds.value.method }}.yml
+
