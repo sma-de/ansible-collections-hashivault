@@ -9,5 +9,5 @@
 
 
   - include_tasks: >-
-      cred_update_methods/methods/{{ _iter_upd_creds.value.method }}.yml
+      cred_update_methods/methods/{{ _iter_upd_creds.method }}.yml
 

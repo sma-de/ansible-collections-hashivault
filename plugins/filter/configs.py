@@ -135,25 +135,47 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
         tmp.update({
           'upload_creds': ([collections.abc.Mapping]),
           'config': ([collections.abc.Mapping]),
+          'mode': (list(string_types), 'write', ['read', 'write']),
         })
 
         return tmp
 
 
     def _conv_method_azure_keyvault(self, value, upload_creds, cfg, name_pfx):
+        readmode = self.get_taskparam('mode') == 'read'
+        subkey = 'set_secrets'
+
+        if readmode:
+            subkey = 'get_secrets'
+
         secret_cfgs = {}
 
         for k,v in upload_creds['creds'].items():
+            if readmode and k != 'secret':
+                # we only need to read the actual secret, nothing else
+                continue
+
             n = (name_pfx + '_' + k).replace('_', '-')
 
-            secret_cfgs[n] = {
-              'value': v
-            }
+            tmp = {}
 
-        value['set_secrets'] = {
+            if readmode:
+                # totally possible an old secret does not exist yet when
+                # this is the initial run for this credential updater config
+                tmp['optional'] = True
+            else:
+                tmp['value'] = v
+
+            secret_cfgs[n] = tmp
+
+        tmp = {
           'secrets': secret_cfgs
         }
 
+        if readmode:
+            tmp['return_list'] = True
+
+        value[subkey] = tmp
         return value
 
 

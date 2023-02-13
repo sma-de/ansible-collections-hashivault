@@ -51,19 +51,6 @@
         register: _approle_id
 
 
-# TODO: fix old secret invalidating
-##      - name: invalidate old approle secret
-##        terryhowe.hashivault.hashivault_approle_role_secret:
-##          name: "{{ _cur_roler.name }}"
-##          mount_point: "{{ _cur_roler.mount_point }}"
-##          secret: "{{ _approle_creds.get(_cur_roler.name).secret }}"
-##          state: absent
-##        register: _approle_id_secret
-##        ##no_log: "{{ not (disable_secret_log_hiding | default(false, True)) }}"
-##        changed_when: False  # this is an ever-changed while we prefer in such cases a never-changed
-##        when: _approle_creds.get(_cur_roler.name, False)
-
-
       - name: get new approle secret
         terryhowe.hashivault.hashivault_approle_role_secret:
           name: "{{ _cur_roler.name }}"
@@ -90,11 +77,39 @@
         no_log: true
 
 
-        ## optionally write/post updated credential to a backend service
-      - include_tasks: "cred_update_methods/main.yml"
-        loop: "{{ _iter_approlers.update_creds | dict2items() }}"
+      - set_fact:
+          _smabot_hashivault_old_secret:
+          _smabot_hashivault_upd_creds_mode: read
+
+      - name: read old secret from default sink settings
+        include_tasks: "cred_update_methods/main.yml"
+        loop: "{{ [_iter_approlers.update_creds._default_sink] }}"
         loop_control:
           loop_var: _iter_upd_creds
+        when: _iter_approlers.update_creds._default_sink
+
+
+      - set_fact:
+          _smabot_hashivault_upd_creds_mode: write
+
+        ## optionally write/post updated credential to a backend service
+      - include_tasks: "cred_update_methods/main.yml"
+        loop: >-
+          {{ _iter_approlers.update_creds.sinks | dict2items()
+           | map(attribute='value') }}
+        loop_control:
+          loop_var: _iter_upd_creds
+
+
+      - name: invalidate old approle secret
+        terryhowe.hashivault.hashivault_approle_role_secret:
+          name: "{{ _cur_roler.name }}"
+          mount_point: "{{ _cur_roler.mount_point }}"
+          secret: "{{ _smabot_hashivault_old_secret }}"
+          state: absent
+        no_log: "{{ not (disable_secret_log_hiding | default(false, True)) }}"
+        changed_when: False  # this is an ever-changed while we prefer in such cases a never-changed
+        when: _smabot_hashivault_old_secret
 
     when: >-
       _iter_approlers.update_creds is truthy and _cur_roler.state == 'present'

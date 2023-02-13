@@ -2,16 +2,36 @@
 
   - set_fact:
       smabot_azure_keyvault_secrets_args: >-
-        {{ _iter_upd_creds.value.params
+        {{ _iter_upd_creds.params
          | smabot.hashivault.convert_update_creds_params(
              upload_creds=smabot_upload_creds,
-             config=_iter_upd_creds.value,
+             config=_iter_upd_creds,
+             mode=_smabot_hashivault_upd_creds_mode,
            )
         }}
     no_log: true
 
 
+  - block:
+
+        ##
+        ## note: this might be obviously empty on the first run
+        ##
+      - name: read current / old secret from azure keyvault  ==>>  {{ _cur_roler.name }}
+        ansible.builtin.include_role:
+          name: smabot.azure.readwrite_keyvault_secrets
+
+      - set_fact:
+          _smabot_hashivault_old_secret: >-
+             {{ smabot_azure_read_secrets.secrets | first }}
+        when: smabot_azure_read_secrets.secrets | default(False)
+        no_log: true
+
+    when: _smabot_hashivault_upd_creds_mode == 'read'
+
+
   - name: write back updated credentials to azure keyvault  ==>>  {{ _cur_roler.name }}
     ansible.builtin.include_role:
       name: smabot.azure.readwrite_keyvault_secrets
+    when: _smabot_hashivault_upd_creds_mode == 'write'
 

@@ -1572,7 +1572,7 @@ class LoginCredsNormer(NormalizerBase):
               " credentials is not possible, please specify some explicitly"
             )
 
-            tmp = vman['update_creds']
+            tmp = vman['update_creds']['sinks']
             ansible_assert(tmp,
               "No credential updating methods defined for vaultmanager"\
               " approle '{}' which makes defaulting login settings impossible,"\
@@ -1832,7 +1832,7 @@ class AppRolersInstLateNormer(NormalizerNamed):
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
-          UpdateCredsInstNormerLate(pluginref),
+          UpdateCredsSinkInstNormerLate(pluginref),
         ]
 
         super(AppRolersInstLateNormer, self).__init__(
@@ -1849,7 +1849,7 @@ class AppRolersInstNormer(NormalizerNamed):
     def __init__(self, pluginref, *args, **kwargs):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
-          UpdateCredsInstNormer(pluginref),
+          UpdateCredsNormer(pluginref),
           EntityPolAttachNormer(pluginref),
         ]
 
@@ -1907,10 +1907,62 @@ class AppRolersInstNormer(NormalizerNamed):
         return my_subcfg
 
 
-class UpdateCredsInstNormer(NormalizerNamed):
+class UpdateCredsNormer(NormalizerBase):
 
     def __init__(self, pluginref, *args, **kwargs):
-        super(UpdateCredsInstNormer, self).__init__(
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          UpdateCredsSinkInstNormer(pluginref),
+        ]
+
+        super(UpdateCredsNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+
+    @property
+    def config_path(self):
+        return ['update_creds']
+
+    def _handle_specifics_postsub(self, cfg, my_subcfg, cfgpath_abs):
+        sinks = my_subcfg['sinks']
+        defsink = None
+
+        if sinks:
+            pcfg = self.get_parentcfg(cfg, cfgpath_abs)
+            defaulters = {}
+
+            for k,v in sinks.items():
+                if v['default']:
+                    defaulters[k] = v
+
+            txt = "bad 'update_cred' settings for approler '{}':".format(
+              pcfg['name']
+            )
+
+            ansible_assert(defaulters,
+               "{} one credentials update sink must be set to default. If your"\
+               " config has more than one sink you mast mark the default one"\
+               " explicitly.".format(txt)
+            )
+
+            ansible_assert(len(defaulters) == 1,
+               "{} exactly one credentials update sink must be marked as"\
+               " default, but found '{}': {}".format(
+                  txt, len(defaulters), list(defaulters.keys())
+               )
+            )
+
+            defsink = next(iter(defaulters.values()))
+
+        my_subcfg['_default_sink'] = defsink
+        return my_subcfg
+
+
+class UpdateCredsSinkInstNormer(NormalizerNamed):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(UpdateCredsSinkInstNormer, self).__init__(
            pluginref, *args, **kwargs
         )
 
@@ -1919,36 +1971,42 @@ class UpdateCredsInstNormer(NormalizerNamed):
 
     @property
     def config_path(self):
-        return ['update_creds', SUBDICT_METAKEY_ANY]
+        return ['sinks', SUBDICT_METAKEY_ANY]
 
     @property
     def name_key(self):
         return 'method'
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
-        tmp = my_subcfg.get('login', None)
+        siblings = self.get_parentcfg(cfg, cfgpath_abs)
+        only_child = len(siblings) == 1
 
-        if not tmp:
+        tmp = my_subcfg.get('default', None)
+        if tmp is None:
+            # default "default" setting, will be true when only
+            # one sink exists, otherwise false
+            my_subcfg['default'] = only_child
+
+        if tmp is None:
             # default login setting (most cases this will be simply false)
-            siblings = self.get_parentcfg(cfg, cfgpath_abs)
-            pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=2)
+            pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=3)
 
             # for most cases this will simply be false, except current
             # approle is marked as vault manager and has just one
             # update_cred sink defined
-            my_subcfg['login'] = len(siblings) == 1 and pcfg['vault_manager']
+            my_subcfg['login'] = only_child and pcfg['vault_manager']
 
         return my_subcfg
 
 
-class UpdateCredsInstNormerLate(NormalizerBase):
+class UpdateCredsSinkInstNormerLate(NormalizerBase):
 
     @property
     def config_path(self):
-        return ['update_creds', SUBDICT_METAKEY_ANY]
+        return ['update_creds', 'sinks', SUBDICT_METAKEY_ANY]
 
     def _handle_method_specifics_self(self, cfg, my_subcfg, cfgpath_abs):
-        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=5)
+        pcfg = self.get_parentcfg(cfg, cfgpath_abs, level=6)
 
         lg = setdefault_none(my_subcfg, 'login', {})
 
