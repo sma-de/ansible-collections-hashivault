@@ -1,7 +1,7 @@
 ---
 
   - set_fact:
-      smabot_hashivault_write_secrets_args: >-
+      smabot_hashivault_readwrite_secrets_args: >-
         {{ _iter_upd_creds.params
          | smabot.hashivault.convert_update_creds_params(
              upload_creds=smabot_upload_creds,
@@ -9,7 +9,7 @@
              mode=_smabot_hashivault_upd_creds_mode
            )
         }}
-    no_log: true
+    ##no_log: true
 
 ## TODO:
 ##  - block:
@@ -23,6 +23,6 @@
 
   - name: write back updated credentials to hashivault  ==>>  {{ _cur_roler.name }}
     ansible.builtin.include_role:
-      name: smabot.hashivault.write_secrets
+      name: smabot.hashivault.readwrite_secrets
     when: _smabot_hashivault_upd_creds_mode == 'write'
 

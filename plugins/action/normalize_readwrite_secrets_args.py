@@ -21,7 +21,8 @@ class ConfigRootNormalizer(NormalizerBase):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
           LoginNormer(pluginref),
-          SecretInstNormer(pluginref),
+          GetSecretsNormer(pluginref),
+          SetSecretInstNormer(pluginref),
         ]
 
         super(ConfigRootNormalizer, self).__init__(pluginref, *args, **kwargs)
@@ -45,18 +46,14 @@ class LoginNormer(NormalizerBase):
         return ['login']
 
 
-class SecretInstNormer(NormalizerNamed):
+class SecretInstNormerBase(NormalizerNamed):
 
     def __init__(self, pluginref, *args, **kwargs):
-        super(SecretInstNormer, self).__init__(
+        super(SecretInstNormerBase, self).__init__(
            pluginref, *args, **kwargs
         )
 
         self.default_setters['config'] = DefaultSetterConstant({})
-
-    @property
-    def config_path(self):
-        return ['secrets', SUBDICT_METAKEY_ANY]
 
     @property
     def name_key(self):
@@ -66,12 +63,71 @@ class SecretInstNormer(NormalizerNamed):
         c = my_subcfg['config']
 
         c['secret'] = my_subcfg['path']
-        c['data'] = my_subcfg['data']
 
         se = my_subcfg.get('secret_engine', None)
 
         if se:
             c['mount_point'] = se
+
+        return my_subcfg
+
+
+# TODO: support reading all and matching per regex
+class GetSecretsNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        subnorms = kwargs.setdefault('sub_normalizers', [])
+        subnorms += [
+          GetSecretInstNormer(pluginref),
+        ]
+
+        super(GetSecretsNormer, self).__init__(pluginref, *args, **kwargs)
+
+        self.default_setters['return_list'] = DefaultSetterConstant(False)
+
+    @property
+    def config_path(self):
+        return ['get_secrets']
+
+
+class GetSecretInstNormer(SecretInstNormerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(GetSecretInstNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['optional'] = DefaultSetterConstant(False)
+
+    @property
+    def config_path(self):
+        return ['secrets', SUBDICT_METAKEY_ANY]
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        super(GetSecretInstNormer, self)._handle_specifics_presub(
+          cfg, my_subcfg, cfgpath_abs
+        )
+
+        c = my_subcfg['config']
+        c['data'] = my_subcfg['data']
+
+        setdefault_none(c, 'state', 'present')
+        return my_subcfg
+
+
+class SetSecretInstNormer(SecretInstNormerBase):
+
+    @property
+    def config_path(self):
+        return ['set_secrets', 'secrets', SUBDICT_METAKEY_ANY]
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        super(SetSecretInstNormer, self)._handle_specifics_presub(
+          cfg, my_subcfg, cfgpath_abs
+        )
+
+        c = my_subcfg['config']
+        c['data'] = my_subcfg['data']
 
         setdefault_none(c, 'state', 'present')
         return my_subcfg
@@ -95,5 +151,5 @@ class ActionModule(ConfigNormalizerBaseMerger):
 
     @property
     def my_ansvar(self):
-        return 'smabot_hashivault_write_secrets_args'
+        return 'smabot_hashivault_readwrite_secrets_args'
 

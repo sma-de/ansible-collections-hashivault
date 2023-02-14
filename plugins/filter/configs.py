@@ -180,6 +180,12 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
 
 
     def _conv_method_hashivault(self, value, upload_creds, cfg, name_pfx):
+        readmode = self.get_taskparam('mode') == 'read'
+        subkey = 'set_secrets'
+
+        if readmode:
+            subkey = 'get_secrets'
+
         tmp = copy.deepcopy(value['secret_def'])
         tmp['data'] = upload_creds['creds']
 
@@ -189,12 +195,16 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
           }
         }
 
+        res = {
+          subkey: secret_cfg
+        }
+
         tmp = value.get('login', None)
 
         if tmp:
-            secret_cfg['login'] = tmp
+            res['login'] = tmp
 
-        return secret_cfg
+        return res
 
 
     def run_specific(self, value):
