@@ -183,17 +183,23 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
         readmode = self.get_taskparam('mode') == 'read'
         subkey = 'set_secrets'
 
+        tmp = copy.deepcopy(value['secret_def'])
+
         if readmode:
             subkey = 'get_secrets'
-
-        tmp = copy.deepcopy(value['secret_def'])
-        tmp['data'] = upload_creds['creds']
+            tmp['data_keys'] = ['secret']
+            tmp['optional'] = True
+        else:
+            tmp['data'] = upload_creds['creds']
 
         secret_cfg = {
           'secrets': {
              'auto_upload_hvault_cred_' + name_pfx: tmp
           }
         }
+
+        if readmode:
+            secret_cfg['return_list'] = True
 
         res = {
           subkey: secret_cfg

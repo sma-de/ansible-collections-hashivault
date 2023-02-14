@@ -6,6 +6,7 @@
 
   - set_fact:
       smabot_hashivault_login_args_normed: "{{ smabot_hashivault_login_args }}"
+    no_log: True
 
 
     ##

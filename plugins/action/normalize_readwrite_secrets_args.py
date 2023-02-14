@@ -109,9 +109,11 @@ class GetSecretInstNormer(SecretInstNormerBase):
         )
 
         c = my_subcfg['config']
-        c['data'] = my_subcfg['data']
 
-        setdefault_none(c, 'state', 'present')
+        # note: currently used version of upstream library is
+        #   somewhat dated and still has kv engine 1 as default,
+        #   but it should obviously be version 2
+        setdefault_none(c, 'version', 2)
         return my_subcfg
 
 

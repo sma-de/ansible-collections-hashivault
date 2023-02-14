@@ -11,14 +11,20 @@
         }}
     ##no_log: true
 
-## TODO:
-##  - block:
-##
-##      - name: read current / old secret from azure keyvault  ==>>  {{ _cur_roler.name }}
-##        ansible.builtin.include_role:
-##          name: smabot.azure.readwrite_keyvault_secrets
-##
-##    when: _smabot_hashivault_upd_creds_mode == 'read'
+  - block:
+
+      - name: read current / old secret from hashivault  ==>>  {{ _cur_roler.name }}
+        ansible.builtin.include_role:
+          name: smabot.hashivault.readwrite_secrets
+
+
+      - set_fact:
+          _smabot_hashivault_old_secret: >-
+             {{ smabot_hashivault_read_secrets | first }}
+        when: smabot_hashivault_read_secrets | default(False)
+        no_log: true
+
+    when: _smabot_hashivault_upd_creds_mode == 'read'
 
 
   - name: write back updated credentials to hashivault  ==>>  {{ _cur_roler.name }}
