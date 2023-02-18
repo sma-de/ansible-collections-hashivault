@@ -44,6 +44,10 @@
   - name: create a new set of approle credentials
     block:
 
+      - debug:
+          msg: >-
+            create a new set of approle credentials for {{ _cur_roler.name }}
+
       - name: get approle id
         terryhowe.hashivault.hashivault_approle_role_id:
           name: "{{ _cur_roler.name }}"
@@ -112,5 +116,6 @@
         when: _smabot_hashivault_old_secret
 
     when: >-
-      _iter_approlers.update_creds is truthy and _cur_roler.state == 'present'
+      _iter_approlers.update_creds.sinks is truthy
+      and _cur_roler.state == 'present'
 
