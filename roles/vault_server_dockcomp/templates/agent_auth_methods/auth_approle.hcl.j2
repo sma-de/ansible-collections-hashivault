@@ -1,0 +1,17 @@
+
+auto_auth {
+  method {
+    type = "approle"
+
+{% if VAULTCFG_TEMPLATE_VARS.MOUNT_POINT | default(False) %}
+    mount_path = "{{ VAULTCFG_TEMPLATE_VARS.MOUNT_POINT }}"
+{% endif %}
+
+    config = {
+      role_id_file_path = "{{ VAULTCFG_TEMPLATE_VARS.ROLE_ID_FILE }}"
+      secret_id_file_path = "{{ VAULTCFG_TEMPLATE_VARS.SECRET_ID_FILE }}"
+      remove_secret_id_file_after_reading = true
+    }
+  }
+}
+

@@ -1,0 +1,153 @@
+---
+
+   ## support vars.d dirs
+  - include_role:
+      name: smabot.base.expand_vardirs
+
+
+  - smabot.hashivault.normalize_vault_server_dockcomp_args:
+    register: _tmp_normed_cfg
+    ##no_log: true
+
+  - set_fact:
+      smabot_hashivault_vault_server_dockcomp_args_normed: "{{ _tmp_normed_cfg.normalized }}"
+    ##no_log: true
+
+
+  - name: assure local dir(s) do exist
+    ansible.builtin.file: "{{ _iter_dirs.config }}"
+    loop:
+      - "{{ smabot_hashivault_vault_server_dockcomp_args_normed.directories._local_dirs }}"
+    loop_control:
+      loop_var: _iter_dirs
+
+
+  - name: template vault config file(s)
+    ansible.builtin.template:
+      src: vault_config.hcl.j2
+      dest: "{{ hashivault_local_dirs.hvault_cfg }}/vault_config.hcl"
+    notify: "restart docker compose project"
+
+
+##   - name: check if client cert files exist
+##     ansible.builtin.stat:
+##       path: "{{ ssl_certs.client.client_key }}"
+##     register: _tmp_filecheck
+## 
+## 
+##   - block:
+## 
+##       ##
+##       ## bootstrap https with self signed cert (will be later auto replaced by hvault managed proper cert)
+##       ##
+## 
+##       - community.docker.docker_container:
+##           image: "{{ hashivault_docker_images.hashivault.image ~ ':' ~ hashivault_docker_images.hashivault.version }}"
+##           name: tmp_check_vault_id
+##           state: started
+## 
+##           pull: true
+## 
+##           tty: true
+##           entrypoint: '/bin/sh'
+##           command: -c tail -f /dev/null
+## 
+## 
+##       - name: get vault docker user id
+##         community.docker.docker_container_exec:
+##           container: tmp_check_vault_id
+##           argv:
+##             - getent
+##             - passwd
+##             - vault
+##           strip_empty_ends: true
+##         register: _tmp_modres
+## 
+## 
+##       - community.docker.docker_container:
+##           name: tmp_check_vault_id
+##           state: absent
+##           keep_volumes: false
+## 
+##       - set_fact:
+##           _tmp_uid: >-
+##              {{ (_tmp_modres.stdout.split(':')) }}
+## 
+## 
+##       - ansible.builtin.file:
+##           path: "{{ ssl_certs.client.client_key | dirname }}"
+##           state: directory
+## 
+## 
+##         ##
+##         ## note: we create a basic simple cert for initial setup run here,
+##         ##   later on when vault is up and running this will be automatic
+##         ##   replaced by a proper vault pki-ed cert
+##         ##
+##       - name: assure client cert private key exists for initial setup run
+##         community.crypto.openssl_privatekey:
+##           path: "{{ ssl_certs.client.client_key }}"
+##           owner: "{{ _tmp_uid[2] }}"
+##           group: "{{ _tmp_uid[3] }}"
+## 
+##       - name: assure client cert exists for initial setup run
+##         community.crypto.x509_certificate:
+##           path: "{{ ssl_certs.client.client_cert }}"
+##           privatekey_path: "{{ ssl_certs.client.client_key }}"
+##           provider: selfsigned
+##           owner: "{{ _tmp_uid[2] }}"
+##           group: "{{ _tmp_uid[3] }}"
+## 
+##     when: _tmp_filecheck.stat.isreg is not defined or not _tmp_filecheck.stat.isreg
+## 
+## 
+##   - ansible.builtin.include_role:
+##       name: smabot.containers.compose_app
+##     vars:
+##       smabot_dockcompose_prjdir: "{{ hashivault_compose_dir }}"
+##       smabot_base_wait_until_webservice_ready_args:
+##         taskname: "assure vault server is properly booted and reachable (timeout: 5min)"
+##         config:
+##           url: "{{ hashivault_urls.external }}"
+##           validate_certs: >-
+##             {{ smabot_hashivault_config_instance_args.connection.validate_certs
+##              | default(True) }}
+## 
+## 
+##   - name: handle vault configuration
+##     ansible.builtin.include_role:
+##       name: smabot.hashivault.config_instance
+## 
+## 
+##   - block:
+## 
+##       - set_fact:
+##           mkey_az_secrets: {}
+## 
+##       - set_fact:
+##           mkey_az_secrets: >-
+##             {{ mkey_az_secrets | combine({
+##                  'hashivault-master-key-{:d}'.format(_mkey_idx): {
+##                     'value': _iter_mkeys
+##                  }
+##                })
+##             }}
+## 
+##         loop: "{{ smabot_hashivault_init_state.key_setup.get('keys') }}"
+##         loop_control:
+##           loop_var: _iter_mkeys
+##           index_var: _mkey_idx
+##         no_log: true
+## 
+##       - set_fact:
+##           smabot_azure_keyvault_secrets_args:
+##             set_secrets:
+##               secrets: "{{ mkey_az_secrets }}"
+##         no_log: true
+## 
+##       - name: save hahsivault master keys to azure keyvault
+##         ansible.builtin.include_role:
+##           name: smabot.azure.readwrite_keyvault_secrets
+## 
+##     when: smabot_hashivault_first_init
+
