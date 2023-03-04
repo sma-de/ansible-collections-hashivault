@@ -14,19 +14,19 @@
     ##no_log: true
 
 
-  - name: assure local dir(s) do exist
-    ansible.builtin.file: "{{ _iter_dirs.config }}"
-    loop:
-      - "{{ smabot_hashivault_vault_server_dockcomp_args_normed.directories._local_dirs }}"
-    loop_control:
-      loop_var: _iter_dirs
-
-
-  - name: template vault config file(s)
-    ansible.builtin.template:
-      src: vault_config.hcl.j2
-      dest: "{{ hashivault_local_dirs.hvault_cfg }}/vault_config.hcl"
-    notify: "restart docker compose project"
+##  - name: assure local dir(s) do exist
+##    ansible.builtin.file: "{{ _iter_dirs.config }}"
+##    loop:
+##      - "{{ smabot_hashivault_vault_server_dockcomp_args_normed.directories._local_dirs }}"
+##    loop_control:
+##      loop_var: _iter_dirs
+##
+##
+##  - name: template vault config file(s)
+##    ansible.builtin.template:
+##      src: vault_config.hcl.j2
+##      dest: "{{ hashivault_local_dirs.hvault_cfg }}/vault_config.hcl"
+##    notify: "restart docker compose project"
 
 
 ##   - name: check if client cert files exist
