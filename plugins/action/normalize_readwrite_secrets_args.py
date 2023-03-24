@@ -60,6 +60,7 @@ class SecretInstNormerBase(NormalizerNamed):
         return 'path'
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        ## TODO: change from terryhow modules to community modules
         c = my_subcfg['config']
 
         c['secret'] = my_subcfg['path']
@@ -84,6 +85,7 @@ class GetSecretsNormer(NormalizerBase):
         super(GetSecretsNormer, self).__init__(pluginref, *args, **kwargs)
 
         self.default_setters['return_list'] = DefaultSetterConstant(False)
+        self.default_setters['return_layout'] = DefaultSetterConstant('vault_paths_nested')
 
     @property
     def config_path(self):
@@ -98,6 +100,9 @@ class GetSecretInstNormer(SecretInstNormerBase):
         )
 
         self.default_setters['optional'] = DefaultSetterConstant(False)
+        self.default_setters['only_values'] = DefaultSetterConstant(True)
+        self.default_setters['return_secrets'] = DefaultSetterConstant(True)
+        self.default_setters['key_filters'] = DefaultSetterConstant({})
 
     @property
     def config_path(self):
@@ -108,12 +113,29 @@ class GetSecretInstNormer(SecretInstNormerBase):
           cfg, my_subcfg, cfgpath_abs
         )
 
+        # map classic data keys feature to new more general key_filters method
+        dk = my_subcfg.get('data_keys', None)
+
+        if dk:
+            my_subcfg['key_filters']['data_keys'] = {
+              'type': 'one_of',
+              'args': {
+                'one_of_lst': dk,
+              },
+            }
+
         c = my_subcfg['config']
 
         # note: currently used version of upstream library is
         #   somewhat dated and still has kv engine 1 as default,
         #   but it should obviously be version 2
         setdefault_none(c, 'version', 2)
+
+        ## note: atm we use terryhowe modules for writing and already did the switch to community modules for reading which means we need to convert between modules api's for now here
+        c['path'] = c.pop('secret')
+        c['engine_mount_point'] = c.pop('mount_point')
+
+        my_subcfg['kv_version'] = c.pop('version')
         return my_subcfg
 
 
