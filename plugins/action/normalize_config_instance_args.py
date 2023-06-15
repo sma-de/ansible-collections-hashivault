@@ -43,6 +43,7 @@ class ConfigRootNormalizer(NormalizerBase):
 
         super(ConfigRootNormalizer, self).__init__(pluginref, *args, **kwargs)
         self.default_setters['initial_config'] = DefaultSetterConstant({})
+        self.default_setters['hide_secrets'] = DefaultSetterConstant(True)
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
         url = urlparse(my_subcfg['server_url'])
