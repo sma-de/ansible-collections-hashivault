@@ -2255,7 +2255,7 @@ class AuthMethodJwtNormer(AuthMethodOidcOrJwtBaseNormer):
             def_bi = tmp.netloc
 
             if tmp.scheme:
-                def_bi = tmp.scheme + ':' + def_bi
+                def_bi = tmp.scheme + '://' + def_bi
 
             setdefault_none(c, 'bound_issuer', def_bi)
 
