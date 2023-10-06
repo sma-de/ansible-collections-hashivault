@@ -2239,9 +2239,25 @@ class AuthMethodJwtNormer(AuthMethodOidcOrJwtBaseNormer):
         if tmp:
             tmp = urlparse(tmp)
 
+            ##
+            ## update: not sure if there is a really hard and fast common
+            ##   rule for how bound_issuer relate to the jwks_url, the one
+            ##   functioning example we have is for gitlab CI which recently
+            ##   changed from just url.netloc to netloc + scheme, for now
+            ##   we will also change our defaulting here accordingly but if
+            ##   there actually is not a real common best-practice for this
+            ##   we just should settle on one default and keep it
+            ##
+            ## setdefault_none(c, 'bound_issuer', tmp.netloc)
+            ## ##setdefault_none(c, 'bound_issuer', tmp.hostname)
+
             ## note: netloc seems more correct here (hostname + port), but it also might just be hostname
-            setdefault_none(c, 'bound_issuer', tmp.netloc)
-            ##setdefault_none(c, 'bound_issuer', tmp.hostname)
+            def_bi = tmp.netloc
+
+            if tmp.scheme:
+                def_bi = tmp.scheme + ':' + def_bi
+
+            setdefault_none(c, 'bound_issuer', def_bi)
 
         return my_subcfg
 
