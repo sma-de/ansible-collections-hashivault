@@ -67,5 +67,14 @@
         loop_control:
           loop_var: _iter_secrets
 
+          ##
+          ## note: important to use label here, because on default
+          ##   the complete map is printed to log with all its
+          ##   secrets inside!!
+          ##
+          ## see also: https://serverfault.com/q/1059530
+          ##
+          label: "{{ _iter_secrets.key }}"
+
     environment: "{{ _vault_env }}"
 
