@@ -276,10 +276,10 @@ class ChangeLoginMethodFilter(FilterBase):
         # the source dicts
         value = copy.deepcopy(value)
 
-        value['creds'] = {
+        value['creds'].update({
           'method': self.get_taskparam('method'),
           'params': self.get_taskparam('params'),
-        }
+        })
 
         return value
 

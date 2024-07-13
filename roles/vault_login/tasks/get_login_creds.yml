@@ -1,4 +1,15 @@
 ---
 
-  - include_tasks: "get_login_creds_methods/{{ smabot_hashivault_login_args_normed.creds.method }}.yml"
+    ##
+    ## note: allow to override which host is used for secret access
+    ##   as depending on the secret backend it might be very
+    ##   important which host is used (has access at all)
+    ##
+  - block:
+
+      - include_tasks: >-
+          get_login_creds_methods/{{ smabot_hashivault_login_args_normed.creds.method }}.yml
+
+    delegate_to: >-
+      {{ smabot_hashivault_login_args_normed.creds.delegate | default(ansible_play_batch | first, True) }}
 

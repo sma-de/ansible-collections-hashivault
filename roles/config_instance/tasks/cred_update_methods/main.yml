@@ -7,7 +7,16 @@
         name: "{{ _cur_roler.name }}"
     no_log: true
 
+    ##
+    ## note: allow to override which host is used for secret access
+    ##   as depending on the secret backend it might be very
+    ##   important which host is used (has access at all)
+    ##
+  - block:
 
-  - include_tasks: >-
-      cred_update_methods/methods/{{ _iter_upd_creds.method }}.yml
+      - include_tasks: >-
+          cred_update_methods/methods/{{ _iter_upd_creds.method }}.yml
+
+    delegate_to: >-
+      {{ _iter_upd_creds.delegate | default(ansible_play_batch | first, True) }}
 
