@@ -32,6 +32,7 @@
 
       - set_fact:
           _vault_env: "{{ smabot_hashivault_connection_env }}"
+        no_log: True
 
     when: smabot_hashivault_readwrite_secrets_args_normed.login.enabled
 
