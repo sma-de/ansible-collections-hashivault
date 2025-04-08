@@ -23,6 +23,7 @@ class ConfigRootNormalizer(NormalizerBase):
           LoginNormer(pluginref),
           GetSecretsNormer(pluginref),
           SetSecretInstNormer(pluginref),
+          RemoveSecretsInstNormer(pluginref),
         ]
 
         super(ConfigRootNormalizer, self).__init__(pluginref, *args, **kwargs)
@@ -69,6 +70,24 @@ class SecretInstNormerBase(NormalizerNamed):
 
         if se:
             c['mount_point'] = se
+
+        return my_subcfg
+
+
+##
+## instead of terry-how based standard module interface
+## use community modules one
+##
+class SecretInstNormerBaseCommunity(SecretInstNormerBase):
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        super(SecretInstNormerBaseCommunity, self)._handle_specifics_presub(
+          cfg, my_subcfg, cfgpath_abs
+        )
+
+        c = my_subcfg['config']
+        c['path'] = c.pop('secret')
+        c['engine_mount_point'] = c.pop('mount_point')
 
         return my_subcfg
 
@@ -155,6 +174,28 @@ class SetSecretInstNormer(SecretInstNormerBase):
 
         setdefault_none(c, 'state', 'present')
         return my_subcfg
+
+
+class RemoveSecretsInstNormer(SecretInstNormerBaseCommunity):
+
+    @property
+    def config_path(self):
+        return ['remove_secrets', 'secrets', SUBDICT_METAKEY_ANY]
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        super(RemoveSecretsInstNormer, self)._handle_specifics_presub(
+          cfg, my_subcfg, cfgpath_abs
+        )
+
+        c = my_subcfg['config']
+
+        vers = my_subcfg.get('versions', None)
+
+        if vers:
+            c['versions'] = vers
+
+        return my_subcfg
+
 
 
 class ActionModule(ConfigNormalizerBaseMerger):

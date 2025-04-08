@@ -77,5 +77,14 @@
           ##
           label: "{{ _iter_secrets.key }}"
 
+
+      - include_tasks: remove_secret_versions.yml
+        loop: >-
+          {{ smabot_hashivault_readwrite_secrets_args_normed.remove_secrets.secrets
+           | dict2items()
+          }}
+        loop_control:
+          loop_var: _iter_secrets
+
     environment: "{{ _vault_env }}"
 
