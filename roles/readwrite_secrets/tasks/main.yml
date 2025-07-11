@@ -2,11 +2,14 @@
 
   - smabot.hashivault.normalize_readwrite_secrets_args:
     register: _tmp_normed_cfg
-    no_log: true
+    no_log: >-
+      {{ smabot_hashivault_readwrite_secrets_args.hide_secrets
+       | default(True, True) }}
 
   - set_fact:
       smabot_hashivault_readwrite_secrets_args_normed: "{{ _tmp_normed_cfg.normalized }}"
-    no_log: true
+    no_log: >-
+      {{ _tmp_normed_cfg.normalized.hide_secrets }}
 
 
   - set_fact:
@@ -32,7 +35,8 @@
 
       - set_fact:
           _vault_env: "{{ smabot_hashivault_connection_env }}"
-        no_log: True
+        no_log: >-
+          {{ smabot_hashivault_readwrite_secrets_args_normed.hide_secrets }}
 
     when: smabot_hashivault_readwrite_secrets_args_normed.login.enabled
 
@@ -57,7 +61,8 @@
             {{ smabot_hashivault_read_secrets | smabot.hashivault.read_secrets_to_list }}
         when: >-
           smabot_hashivault_readwrite_secrets_args_normed.get_secrets.return_list
-        no_log: True
+        no_log: >-
+          {{ smabot_hashivault_readwrite_secrets_args_normed.hide_secrets }}
 
 
       - include_tasks: write_secret.yml

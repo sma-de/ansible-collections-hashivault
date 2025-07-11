@@ -28,6 +28,8 @@ class ConfigRootNormalizer(NormalizerBase):
 
         super(ConfigRootNormalizer, self).__init__(pluginref, *args, **kwargs)
 
+        self.default_setters['hide_secrets'] = DefaultSetterConstant(True)
+
 
 class LoginNormer(NormalizerBase):
 
