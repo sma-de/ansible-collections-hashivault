@@ -3,8 +3,12 @@ from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
 
+import json
+
+
 from ansible.errors import AnsibleOptionsError
 ##from ansible.module_utils.six import iteritems, string_types
+from ansible.utils.display import Display
 
 from ansible_collections.smabot.base.plugins.module_utils.plugins.plugin_base import default_param_value
 from ansible_collections.smabot.base.plugins.module_utils.plugins.config_normalizing.base import ConfigNormalizerBaseMerger, NormalizerBase, NormalizerNamed, DefaultSetterConstant, DefaultSetterOtherKey
@@ -13,6 +17,8 @@ from ansible_collections.smabot.base.plugins.module_utils.utils.dicting import S
 
 from ansible_collections.smabot.base.plugins.module_utils.utils.utils import ansible_assert
 
+
+display = Display()
 
 
 class ConfigRootNormalizer(NormalizerBase):
@@ -167,6 +173,10 @@ class SetSecretInstNormer(SecretInstNormerBase):
         return ['set_secrets', 'secrets', SUBDICT_METAKEY_ANY]
 
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        display.vvv("handle secret setter '{}':\n{}".format(
+            '.'.join(cfgpath_abs), json.dumps(my_subcfg, indent=2))
+        )
+
         super(SetSecretInstNormer, self)._handle_specifics_presub(
           cfg, my_subcfg, cfgpath_abs
         )
