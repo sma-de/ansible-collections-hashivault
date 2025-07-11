@@ -3,8 +3,7 @@
   - smabot.hashivault.normalize_readwrite_secrets_args:
     register: _tmp_normed_cfg
     no_log: >-
-      {{ smabot_hashivault_readwrite_secrets_args.hide_secrets
-       | default(True, True) }}
+      {{ smabot_hashivault_readwrite_secrets_args.hide_secrets | default(True) }}
 
   - set_fact:
       smabot_hashivault_readwrite_secrets_args_normed: "{{ _tmp_normed_cfg.normalized }}"
