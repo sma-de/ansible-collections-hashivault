@@ -15,20 +15,43 @@
     ##
   - block:
 
-      - include_tasks: get_master_keys.yml
+      - include_tasks: >-
+          {{ role_path }}/../config_initial/tasks/prepare_system.yml
 
-      - set_fact:
-          smabot_hashivault_unseal_vault_args:
-            server_url: "{{ smabot_hashivault_login_args_normed.server_url }}"
-            connection: >-
-              {{ smabot_hashivault_login_args_normed.get('connection', {}) }}
-            master_keys: >-
-              {{ _tmp_hvault_masterkeys }}
-        no_log: true
+        ##
+        ## note: in principle this seal check is already handled by
+        ##   called unseal_vault role, but get_master_keys can be
+        ##   quite work intensive, so it is a good optimisation to repeat
+        ##   this rather cheap call here and do the work intensive stuff
+        ##   only when some unsealing is actually necessary
+        ##
+      - name: check vault seal status
+        terryhowe.hashivault.hashivault_status:
+          url: "{{ smabot_hashivault_login_args_normed.server_url }}"
+          verify: >-
+            {{ smabot_hashivault_login_args_normed.connection.validate_certs
+             | default(omit) }}
+        register: _tmp_vstat_check
 
-      - name: assure vault is unsealed
-        ansible.builtin.include_role:
-          name: smabot.hashivault.unseal_vault
+
+      - block:
+
+          - include_tasks: get_master_keys.yml
+
+          - set_fact:
+              smabot_hashivault_unseal_vault_args:
+                server_url: "{{ smabot_hashivault_login_args_normed.server_url }}"
+                connection: >-
+                  {{ smabot_hashivault_login_args_normed.get('connection', {}) }}
+                master_keys: >-
+                  {{ _tmp_hvault_masterkeys }}
+            no_log: true
+
+          - name: ensure vault is unsealed
+            ansible.builtin.include_role:
+              name: smabot.hashivault.unseal_vault
+
+        when: _tmp_vstat_check.status.sealed
 
         ## explicitly unset variables which contain master keys
         ## as this secret should not be kept longer around

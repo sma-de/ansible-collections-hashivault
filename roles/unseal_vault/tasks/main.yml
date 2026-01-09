@@ -6,7 +6,8 @@
   ##   necessary py modules are installed
   ##
 
-  - include_tasks: "{{ role_path }}/../config_initial/tasks/prepare_system.yml"
+  - include_tasks: >-
+      {{ role_path }}/../config_initial/tasks/prepare_system.yml
 
 ##  - debug:
 ##      var: smabot_hashivault_unseal_vault_args
