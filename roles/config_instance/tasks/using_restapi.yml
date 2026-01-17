@@ -1,16 +1,19 @@
 ---
 
   - set_fact:
-      _vault_env: >-
-        {{ _vault_env | combine({
+      smabot_hashivault_cfg_instance_global_settings: {}
+      _smabot_hashivault_cfg_instance_vault_env: >-
+        {{ _smabot_hashivault_cfg_instance_vault_env | combine({
              'VAULT_ADDR': smabot_hashivault_config_instance_args_normed.server_url
            })
         }}
 
 
-  - set_fact:
-      _vault_env: >-
-        {{ _vault_env | combine({
+  - name: >-
+      vault config: use initial root token for initial auth
+    set_fact:
+      _smabot_hashivault_cfg_instance_vault_env: >-
+        {{ _smabot_hashivault_cfg_instance_vault_env | combine({
              'VAULT_TOKEN': smabot_hashivault_init_state.key_setup.root_token
            })
         }}
@@ -33,20 +36,23 @@
                  recursive=True, list_merge='append'
              ) }}
 
-      - name: handle vault login
+      - name: vault config 1st login
         ansible.builtin.include_role:
           name: smabot.hashivault.vault_login
         vars:
           smabot_hashivault_login_args: >-
             {{ _tmp_role_call_args }}
 
-      - set_fact:
-           _vault_env: >-
-             {{ _vault_env | combine({'VAULT_TOKEN': smabot_hashivault_login_creds.token}) }}
+      - name: >-
+          vault config 1st login: update auth token
+        set_fact:
+           _smabot_hashivault_cfg_instance_vault_env: >-
+             {{ _smabot_hashivault_cfg_instance_vault_env
+              | combine({'VAULT_TOKEN': smabot_hashivault_login_creds.token}) }}
         no_log: true
 
     when: not smabot_hashivault_first_init
-    environment: "{{ _vault_env }}"
+    environment: "{{ _smabot_hashivault_cfg_instance_vault_env }}"
 
 
   - set_fact:
@@ -64,7 +70,7 @@
       ##
       - include_tasks: config_pre_login.yml
 
-      - name: handle vault login
+      - name: vault config login post pre-login part
         ansible.builtin.include_role:
           name: smabot.hashivault.vault_login
         vars:
@@ -75,12 +81,19 @@
                )
             }}
 
-    environment: "{{ _vault_env }}"
+    environment: "{{ _smabot_hashivault_cfg_instance_vault_env }}"
 
 
-  - set_fact:
-       _vault_env: >-
-         {{ _vault_env | combine({'VAULT_TOKEN': smabot_hashivault_login_creds.token}) }}
+  - name: >-
+      vault config: set final config auth token
+    set_fact:
+      smabot_hashivault_cfg_instance_global_settings: >-
+        {{ smabot_hashivault_cfg_instance_global_settings
+         | ansible.builtin.combine({'use_vault_global_login': True})
+        }}
+      _smabot_hashivault_cfg_instance_vault_env: >-
+         {{ _smabot_hashivault_cfg_instance_vault_env
+          | combine({'VAULT_TOKEN': smabot_hashivault_login_creds.token}) }}
     no_log: true
 
 
@@ -99,7 +112,7 @@
 
       - include_tasks: config_post_login.yml
 
-    environment: "{{ _vault_env }}"
+    environment: "{{ _smabot_hashivault_cfg_instance_vault_env }}"
 
 
   - set_fact:

@@ -5,11 +5,38 @@
     ##   as depending on the secret backend it might be very
     ##   important which host is used (has access at all)
     ##
+  - set_fact:
+      smabot_hashivault_vault_login_get_creds_delegate: >-
+        {{ smabot_hashivault_login_args_normed.creds.delegate
+         | default(ansible_play_batch | first, True) }}
+
   - block:
+
+        ##
+        ## note: python binary path might be different between
+        ##   different hosts, ensure ansible always use an
+        ##   interpreter path valid for the delegate
+        ##
+      - set_fact:
+          smabot_hashivault_vault_login_get_creds_delegate_py: >-
+            {{ ansible_playbook_python }}
+        when: >-
+          smabot_hashivault_vault_login_get_creds_delegate == 'localhost'
+
+      - set_fact:
+          smabot_hashivault_vault_login_get_creds_delegate_py: >-
+            {{ hostvars[smabot_hashivault_vault_login_get_creds_delegate].ansible_facts.ansible_python_interpreter
+             | default(None) }}
+        when: >-
+          smabot_hashivault_vault_login_get_creds_delegate != 'localhost'
+
 
       - include_tasks: >-
           get_login_creds_methods/{{ smabot_hashivault_login_args_normed.creds.method }}.yml
+        vars:
+          ansible_python_interpreter: >-
+            {{ smabot_hashivault_vault_login_get_creds_delegate_py }}
 
     delegate_to: >-
-      {{ smabot_hashivault_login_args_normed.creds.delegate | default(ansible_play_batch | first, True) }}
+      {{ smabot_hashivault_vault_login_get_creds_delegate }}
 

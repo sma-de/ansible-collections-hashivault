@@ -135,6 +135,7 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
         tmp.update({
           'upload_creds': ([collections.abc.Mapping]),
           'config': ([collections.abc.Mapping]),
+          'global_settings': ([collections.abc.Mapping], {}),
           'mode': (list(string_types), 'write', ['read', 'write']),
         })
 
@@ -181,6 +182,8 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
 
     def _conv_method_hashivault(self, value, upload_creds, cfg, name_pfx):
         readmode = self.get_taskparam('mode') == 'read'
+        glob_sets = self.get_taskparam('global_settings')
+
         subkey = 'set_secrets'
 
         tmp = copy.deepcopy(value['secret_def'])
@@ -207,7 +210,7 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
 
         tmp = value.get('login', None)
 
-        if tmp:
+        if tmp and not glob_sets.get('use_vault_global_login', False):
             res['login'] = tmp
 
         return res

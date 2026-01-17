@@ -5,7 +5,11 @@
         creds: "{{ _approle_creds.get(_cur_roler.name) }}"
         type: approle
         name: "{{ _cur_roler.name }}"
+      smabot_hashivault_cfg_instance_cred_upd_delegate: >-
+        {{ _iter_upd_creds.delegate
+         | default(ansible_play_batch | first, True) }}
     no_log: true
+
 
     ##
     ## note: allow to override which host is used for secret access
@@ -14,9 +18,30 @@
     ##
   - block:
 
+        ##
+        ## note: python binary path might be different between
+        ##   different hosts, ensure ansible always use an
+        ##   interpreter path valid for the delegate
+        ##
+      - set_fact:
+          smabot_hashivault_cfg_instance_cred_upd_delegate_py: >-
+            {{ ansible_playbook_python }}
+        when: >-
+          smabot_hashivault_cfg_instance_cred_upd_delegate == 'localhost'
+
+      - set_fact:
+          smabot_hashivault_cfg_instance_cred_upd_delegate_py: >-
+            {{ hostvars[smabot_hashivault_cfg_instance_cred_upd_delegate].ansible_facts.ansible_python_interpreter
+             | default(None) }}
+        when: >-
+          smabot_hashivault_cfg_instance_cred_upd_delegate != 'localhost'
+
       - include_tasks: >-
           cred_update_methods/methods/{{ _iter_upd_creds.method }}.yml
+        vars:
+          ansible_python_interpreter: >-
+            {{ smabot_hashivault_cfg_instance_cred_upd_delegate_py }}
 
     delegate_to: >-
-      {{ _iter_upd_creds.delegate | default(ansible_play_batch | first, True) }}
+      {{ smabot_hashivault_cfg_instance_cred_upd_delegate }}
 

@@ -17,7 +17,7 @@
 
 
   - set_fact:
-      _vault_env:
+      _smabot_hashivault_cfg_instance_vault_env:
          VAULT_ADDR: >-
            {{ smabot_hashivault_config_instance_args_normed.connection.scheme
               ~ '://127.0.0.1:'
@@ -37,19 +37,19 @@
           smabot_hashivault_config_initial_args: >-
             {{ smabot_hashivault_config_instance_args_normed.initial_config }}
 
-    environment: "{{ _vault_env }}"
+    environment: "{{ _smabot_hashivault_cfg_instance_vault_env }}"
 
 
     ## undo bad ssl skips from here on on default
 ##  - set_fact: # note: technically this should work also, but it seems there is abug in hashimodules not interpreting explicitly set to false correctly
-##      _vault_env: >-
-##         {{ _vault_env | combine({
+##      _smabot_hashivault_cfg_instance_vault_env: >-
+##         {{ _smabot_hashivault_cfg_instance_vault_env | combine({
 ##              'VAULT_SKIP_VERIFY': False,
 ##         }) }}
 ##    when: smabot_hashivault_config_instance_args_normed.connection.validate_certs
 
   - set_fact:
-      _vault_env: {}
+      _smabot_hashivault_cfg_instance_vault_env: {}
     when: smabot_hashivault_config_instance_args_normed.connection.validate_certs
 
 

@@ -1,0 +1,93 @@
+---
+
+  - set_fact:
+      _smabot_hashivault_rw_secrets_vault_env: {}
+
+  - block:
+
+      - set_fact:
+          _tmp_role_call_args: >-
+            {{ smabot_hashivault_login_args | default({}, True)
+             | combine(smabot_hashivault_readwrite_secrets_args_normed.login,
+                 recursive=True, list_merge='append'
+             ) }}
+
+
+      - name: handle vault login
+        ansible.builtin.include_role:
+          name: smabot.hashivault.vault_login
+        vars:
+          smabot_hashivault_login_args: >-
+            {{ _tmp_role_call_args }}
+
+
+      - set_fact:
+          _smabot_hashivault_rw_secrets_vault_env: "{{ smabot_hashivault_connection_env }}"
+        no_log: >-
+          {{ smabot_hashivault_readwrite_secrets_args_normed.hide_secrets }}
+
+    when: smabot_hashivault_readwrite_secrets_args_normed.login.enabled
+
+
+    ##
+    ## ensure target fullfills all requirements to run this role,
+    ## normally vault_login takes care of this, so we only need to
+    ## do this explicitly when login is disabled
+    ##
+  - include_tasks: >-
+      {{ smabot_hashivault_readwrite_rolepath }}/../config_initial/tasks/prepare_system.yml
+    when: smabot_hashivault_readwrite_secrets_args_normed.login.enabled is falsy
+
+
+  - block:
+
+      - set_fact:
+          smabot_hashivault_read_secrets: {}
+
+      - include_tasks: read_secrets.yml
+        loop: >-
+          {{ smabot_hashivault_readwrite_secrets_args_normed.get_secrets.secrets
+           | dict2items()
+          }}
+        loop_control:
+          loop_var: _iter_secrets
+
+
+      - name: optionally flatten return map to list
+        set_fact:
+          smabot_hashivault_read_secrets: >-
+            {{ smabot_hashivault_read_secrets | smabot.hashivault.read_secrets_to_list }}
+        when: >-
+          smabot_hashivault_readwrite_secrets_args_normed.get_secrets.return_list
+        no_log: >-
+          {{ smabot_hashivault_readwrite_secrets_args_normed.hide_secrets }}
+
+
+      - include_tasks: write_secret.yml
+        loop: >-
+          {{ smabot_hashivault_readwrite_secrets_args_normed.set_secrets.secrets
+           | dict2items()
+          }}
+        loop_control:
+          loop_var: _iter_secrets
+
+          ##
+          ## note: important to use label here, because on default
+          ##   the complete map is printed to log with all its
+          ##   secrets inside!!
+          ##
+          ## see also: https://serverfault.com/q/1059530
+          ##
+          label: "{{ _iter_secrets.key }}"
+
+
+      - include_tasks: remove_secret_versions.yml
+        loop: >-
+          {{ smabot_hashivault_readwrite_secrets_args_normed.remove_secrets.secrets
+           | dict2items()
+          }}
+        loop_control:
+          loop_var: _iter_secrets
+
+    environment: "{{ _smabot_hashivault_rw_secrets_vault_env }}"
+

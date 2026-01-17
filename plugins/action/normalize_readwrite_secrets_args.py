@@ -27,6 +27,7 @@ class ConfigRootNormalizer(NormalizerBase):
         subnorms = kwargs.setdefault('sub_normalizers', [])
         subnorms += [
           LoginNormer(pluginref),
+          UseVenvNormer(pluginref),
           GetSecretsNormer(pluginref),
           SetSecretInstNormer(pluginref),
           RemoveSecretsInstNormer(pluginref),
@@ -37,10 +38,10 @@ class ConfigRootNormalizer(NormalizerBase):
         self.default_setters['hide_secrets'] = DefaultSetterConstant(True)
 
 
-class LoginNormer(NormalizerBase):
+class UseVenvNormer(NormalizerBase):
 
     def __init__(self, pluginref, *args, **kwargs):
-        super(LoginNormer, self).__init__(
+        super(UseVenvNormer, self).__init__(
            pluginref, *args, **kwargs
         )
 
@@ -52,7 +53,39 @@ class LoginNormer(NormalizerBase):
 
     @property
     def config_path(self):
+        return ['use_venv']
+
+
+class LoginNormer(NormalizerBase):
+
+    @property
+    def simpleform_key(self):
+        return 'enabled'
+
+    @property
+    def config_path(self):
         return ['login']
+
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        ena = my_subcfg.pop('enabled', None)
+
+        if ena is None:
+            ##
+            ## if caller explicitly set anything here besides
+            ## enabled flag we assume they want login to
+            ## happening on default, otherwise login will be
+            ## disabled on default as experience has shown
+            ## that in most practical contextes it is more
+            ## practical to have some kind of pre-auth instead
+            ## of using builtin login feature here, so having this on
+            ## false as default is the actually the more senseable
+            ## choice here
+            ##
+            ena = bool(my_subcfg)
+
+        my_subcfg['enabled'] = ena
+        return my_subcfg
+
 
 
 class SecretInstNormerBase(NormalizerNamed):
@@ -214,9 +247,8 @@ class ActionModule(ConfigNormalizerBaseMerger):
 
     def __init__(self, *args, **kwargs):
         super(ActionModule, self).__init__(ConfigRootNormalizer(self),
-            *args,
-            default_merge_vars=[
-               'smabot_hashivault_readwrite_secrets_args_defaults'
+            *args, default_merge_vars=[
+               'smabot_hashivault_readwrite_secrets_args_defaults',
             ],
             ##extra_merge_vars_ans=['smabot_hashivault_config_instance_args_extra'],
             **kwargs
