@@ -37,7 +37,7 @@
   - include_tasks: >-
       {{ smabot_hashivault_readwrite_rolepath }}/../config_initial/tasks/prepare_system.yml
     when: >-
-      smabot_hashivault_readwrite_secrets_args_normed.system_setup is truthy
+      smabot_hashivault_readwrite_secrets_args_normed.system_setup.enabled is truthy
       and smabot_hashivault_readwrite_secrets_args_normed.login.enabled is falsy
 
 
