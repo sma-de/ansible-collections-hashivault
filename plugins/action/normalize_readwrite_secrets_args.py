@@ -28,6 +28,7 @@ class ConfigRootNormalizer(NormalizerBase):
         subnorms += [
           LoginNormer(pluginref),
           UseVenvNormer(pluginref),
+          SystemSetupNormer(pluginref),
           GetSecretsNormer(pluginref),
           SetSecretInstNormer(pluginref),
           RemoveSecretsInstNormer(pluginref),
@@ -36,6 +37,25 @@ class ConfigRootNormalizer(NormalizerBase):
         super(ConfigRootNormalizer, self).__init__(pluginref, *args, **kwargs)
 
         self.default_setters['hide_secrets'] = DefaultSetterConstant(True)
+
+
+
+class SystemSetupNormer(NormalizerBase):
+
+    def __init__(self, pluginref, *args, **kwargs):
+        super(SystemSetupNormer, self).__init__(
+           pluginref, *args, **kwargs
+        )
+
+        self.default_setters['enabled'] = DefaultSetterConstant(True)
+
+    @property
+    def simpleform_key(self):
+        return 'enabled'
+
+    @property
+    def config_path(self):
+        return ['system_setup']
 
 
 class UseVenvNormer(NormalizerBase):
