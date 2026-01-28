@@ -269,8 +269,9 @@ class ActionModule(ConfigNormalizerBaseMerger):
         super(ActionModule, self).__init__(ConfigRootNormalizer(self),
             *args, default_merge_vars=[
                'smabot_hashivault_readwrite_secrets_args_defaults',
+               'smabot_hashivault_readwrite_secrets_args_defaults_extra',
             ],
-            ##extra_merge_vars_ans=['smabot_hashivault_config_instance_args_extra'],
+            extra_merge_vars_ans=['smabot_hashivault_readwrite_secrets_args_extra_vars'],
             **kwargs
         )
 
