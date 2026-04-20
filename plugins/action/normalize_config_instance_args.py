@@ -5,6 +5,7 @@ __metaclass__ = type
 
 import abc
 import copy
+import collections
 from urllib.parse import urlparse
 import os
 
@@ -1925,6 +1926,38 @@ class UpdateCredsNormer(NormalizerBase):
     def config_path(self):
         return ['update_creds']
 
+    def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
+        sv_cfg = setdefault_none(my_subcfg, 'secret_versions', {})
+
+        ## how many secret versions to keep, set it to zero to
+        ## allow unlimited amount of secret versions to exist
+        setdefault_none(sv_cfg, 'keep', 2)
+
+        ## what do to when more old secret versions are
+        ## found than keep_count allows
+
+        ## just print them as debug message
+        ##setdefault_none(sv_cfg, 'old_versions_handling', 'info')
+
+        ## like info but makes the message a warning
+        setdefault_none(sv_cfg, 'old_versions_handling', 'warn')
+
+        ## automatically delete all old versions
+        ##setdefault_none(sv_cfg, 'old_versions_handling', 'delete')
+
+        ac_cfg = setdefault_none(my_subcfg, 'auto_cycling', True)
+
+        if not isinstance(ac_cfg, collections.abc.Mapping):
+            ## assume simple bool
+            ac_cfg = {'enabled': ac_cfg}
+            my_subcfg['auto_cycling'] = ac_cfg
+        else:
+            setdefault_none(ac_cfg, 'enabled', True)
+
+        setdefault_none(ac_cfg, 'show_as_changed', True)
+        return my_subcfg
+
+
     def _handle_specifics_postsub(self, cfg, my_subcfg, cfgpath_abs):
         sinks = my_subcfg['sinks']
         defsink = None
@@ -1981,6 +2014,11 @@ class UpdateCredsSinkInstNormer(NormalizerNamed):
     def _handle_specifics_presub(self, cfg, my_subcfg, cfgpath_abs):
         siblings = self.get_parentcfg(cfg, cfgpath_abs)
         only_child = len(siblings) == 1
+
+        pcfg_base = self.get_parentcfg(cfg, cfgpath_abs, level=6)
+        setdefault_none(my_subcfg['params'], 'hide_secrets',
+          pcfg_base['hide_secrets']
+        )
 
         tmp = my_subcfg.get('default', None)
         if tmp is None:

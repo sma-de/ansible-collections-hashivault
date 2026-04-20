@@ -8,7 +8,8 @@
       smabot_hashivault_cfg_instance_cred_upd_delegate: >-
         {{ _iter_upd_creds.delegate
          | default(ansible_play_batch | first, True) }}
-    no_log: true
+    no_log: >-
+      {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
 
 
     ##

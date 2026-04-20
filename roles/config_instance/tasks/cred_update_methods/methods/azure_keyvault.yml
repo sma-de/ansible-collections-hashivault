@@ -9,7 +9,8 @@
              mode=_smabot_hashivault_upd_creds_mode,
            )
         }}
-    no_log: true
+    no_log: >-
+      {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
 
 
   - block:
@@ -25,7 +26,8 @@
           _smabot_hashivault_old_secret: >-
              {{ smabot_azure_read_secrets.secrets | first }}
         when: smabot_azure_read_secrets.secrets | default(False)
-        no_log: true
+        no_log: >-
+          {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
 
     when: _smabot_hashivault_upd_creds_mode == 'read'
 

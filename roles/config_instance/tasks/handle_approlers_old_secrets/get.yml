@@ -1,0 +1,22 @@
+---
+
+  - name: get existing approle secret metadata from accessor
+    terryhowe.hashivault.hashivault_approle_role_secret_accessor_get:
+      name: "{{ _cur_roler.name }}"
+      accessor: "{{ _iter_approle_secret_acc }}"
+      mount_point: "{{ _cur_roler.mount_point }}"
+    register: _tmp_modres_approle_old_secret
+    no_log: >-
+      {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+  - set_fact:
+      _tmp_cur_approle_existing_secrets_lst: >-
+        {{ _tmp_cur_approle_existing_secrets_lst + [{
+             'secret_meta': _tmp_modres_approle_old_secret.secret,
+             'sort_key': (_tmp_modres_approle_old_secret.secret.creation_time
+                | ansible.builtin.regex_replace('\.(\d{6})\d*Z$', '.\1Z')
+             ),
+           }] }}
+    no_log: >-
+      {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+

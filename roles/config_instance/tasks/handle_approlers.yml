@@ -37,14 +37,14 @@
         }}
 
 
-  - name: assure approle is created or deleted
+  - name: ensure approle is created or deleted
     terryhowe.hashivault.hashivault_approle_role : "{{ _cur_roler }}"
 
 
   - name: create a new set of approle credentials
     block:
 
-      - debug:
+      - ansible.builtin.debug:
           msg: >-
             create a new set of approle credentials for {{ _cur_roler.name }}
 
@@ -55,37 +55,17 @@
         register: _approle_id
 
 
-      - name: get new approle secret
-        terryhowe.hashivault.hashivault_approle_role_secret:
-          name: "{{ _cur_roler.name }}"
-          mount_point: "{{ _cur_roler.mount_point }}"
-          state: present
-        register: _approle_id_secret
-        no_log: "{{ not (disable_secret_log_hiding | default(false, True)) }}"
-        changed_when: False  # this is an ever-changed while we prefer in such cases a never-changed
-
-
-      - set_fact:
-          _approle_creds: >-
-             {{ _approle_creds | combine({_cur_roler.name: {
-                   'id': _approle_id.id,
-                   'secret': _approle_id_secret.data.secret_id,
-                   'login_mount': _cur_roler.mount_point,
-                }})
-             }}
-        no_log: true
-
-      - set_fact:
-           _vaultman_creds: "{{ _approle_creds.get(_cur_roler.name) }}"
-        when: _iter_approlers.vault_manager
-        no_log: true
-
-
       - set_fact:
           _smabot_hashivault_old_secret:
           _smabot_hashivault_upd_creds_mode: read
+          _approle_creds: >-
+             {{ _approle_creds | combine({_cur_roler.name: {
+                   'id': _approle_id.id, 'secret': '',
+                   'login_mount': _cur_roler.mount_point,
+                }})
+             }}
 
-      - name: read old secret from default sink settings
+      - name: optionally read old secret from default sink settings
         include_tasks: "cred_update_methods/main.yml"
         loop: "{{ [_iter_approlers.update_creds._default_sink] }}"
         loop_control:
@@ -94,26 +74,289 @@
 
 
       - set_fact:
-          _smabot_hashivault_upd_creds_mode: write
+          _tmp_cur_approle_existing_secrets_lst: []
+          _tmp_secrets_keep_corfac: 1
+          _tmp_secret_update: >-
+            {{ _iter_approlers.update_creds.auto_cycling.enabled
+               or not _smabot_hashivault_old_secret }}
 
-        ## optionally write/post updated credential to a backend service
-      - include_tasks: "cred_update_methods/main.yml"
-        loop: >-
-          {{ _iter_approlers.update_creds.sinks | dict2items()
-           | map(attribute='value') }}
+
+      - block:
+
+          - set_fact:
+              _approle_creds: >-
+                 {{ _approle_creds | combine({_cur_roler.name: {
+                       'id': _approle_id.id,
+                       'secret': _smabot_hashivault_old_secret,
+                       'login_mount': _cur_roler.mount_point,
+                    }})
+                 }}
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+
+            ## only do this when we dont cycle the secret here, otherwise it
+            ## is not that important if any old cred set is still valid
+          - name: check if login is possible with old loaded credential set
+            smabot.hashivault.hashivault_login:
+              authtype: approle
+              login_mount_point: "{{ _approle_creds[_cur_roler.name].login_mount }}"
+              role_id: "{{ _approle_creds[_cur_roler.name].id }}"
+              secret_id: "{{ _approle_creds[_cur_roler.name].secret }}"
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+
+          - name: get accessor for old secret continued to use
+            terryhowe.hashivault.hashivault_approle_role_secret_get:
+              name: "{{ _cur_roler.name }}"
+              mount_point: "{{ _cur_roler.mount_point }}"
+              secret: "{{ _smabot_hashivault_old_secret }}"
+            register: _tmp_modres_old_secret_meta
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+
+            ## in default always secret update case we also count the secret
+            ## later generated anew for keep count, so when selecting old
+            ## secrets to keep we must select one fewer than there is as one
+            ## additional new one will later join the bunch, but when because
+            ## of current settings now new secret is generated this iteration
+            ## we obviously must disable this "keep correction factor"
+          - set_fact:
+              _tmp_secrets_keep_corfac: 0
+
+        when: "not _tmp_secret_update"
+
+
+      - block:
+
+          - name: get all already existing approle secrets (accessors)
+            terryhowe.hashivault.hashivault_approle_role_secret_list:
+              name: "{{ _cur_roler.name }}"
+              mount_point: "{{ _cur_roler.mount_point }}"
+            register: _tmp_modres_approle_old_secrets_list
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+          - set_fact:
+              _tmp_approle_old_secrets_vals: >-
+                {{ _tmp_modres_approle_old_secrets_list.secrets }}
+              _tmp_approle_old_secrets_vals_len_before: >-
+                {{ _tmp_modres_approle_old_secrets_list.secrets | length }}
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+          - name: >-
+              ensure old secret loaded from backend is not invalided
+              when no new secret is generated
+            set_fact:
+              _tmp_approle_old_secrets_vals: >-
+                {{ _tmp_approle_old_secrets_vals
+                   | ansible.builtin.difference([
+                       _tmp_modres_old_secret_meta.secret.secret_id_accessor
+                     ])
+                }}
+            when: >-
+              (_tmp_modres_old_secret_meta.secret.secret_id_accessor | default(False)) is truthy
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+            ## if we actively removed / kept safe "current active old secret" with
+            ## the difference filter call above, we actually again need a positive
+            ## correction factor as we auto hide one element from list
+          - set_fact:
+              _tmp_secrets_keep_corfac: 1
+            when: >-
+              (_tmp_approle_old_secrets_vals | length) < (_tmp_approle_old_secrets_vals_len_before | int)
+
+
+          - include_tasks: "handle_approlers_old_secrets/get.yml"
+            loop: "{{ _tmp_approle_old_secrets_vals }}"
+            loop_control:
+              loop_var: _iter_approle_secret_acc
+
+
+          - name: ensure existing secrets list is properly sorted
+            set_fact:
+              _tmp_cur_approle_existing_secrets_lst: >-
+                {{ _tmp_cur_approle_existing_secrets_lst
+                   | smabot.base.date_sort(attribute='sort_key',
+                       reverse=True, format='%Y-%m-%dT%H:%M:%S.%fZ'
+                     )
+                }}
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+            ##
+            ## note: everything in this list post this task is
+            ##   a "bad" / unwanted old secret version
+            ##
+            ## note.2: the "-1" is here because we will create a new secret
+            ##   version here a bit later which will obviously count as
+            ##   the first to keep always
+            ##
+          - name: remove keepers from existing secrets list
+            set_fact:
+              _tmp_cur_approle_existing_secrets_lst: >-
+                {{ _tmp_cur_approle_existing_secrets_lst[
+                     (_iter_approlers.update_creds.secret_versions.keep - _tmp_secrets_keep_corfac):
+                   ] }}
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+
+          - name: inform about old secret versions
+            ansible.builtin.debug:
+              msg: >-
+                {{ "Found '" ~ (_tmp_cur_approle_existing_secrets_lst | length)
+                 ~ "' already existing (old) secret versions above keep"
+                 ~ " threshold for approle '"
+                 ~ _cur_roler.name ~ "', as handling for them was set to"
+                 ~ " only inform about them nothing will be done about them by"
+                 ~ " this pipeline, consider if you really use / need them"
+                 ~ " still, otherwise you should remove them to increase"
+                 ~ " security and reduce potential attack surfaces:\n  -> "
+                 ~ (_tmp_cur_approle_existing_secrets_lst
+                    | map(attribute='secret_meta.creation_time')
+                    | join('\n  -> '))
+                }}
+            when: >-
+              (_tmp_cur_approle_existing_secrets_lst | length) > 0 and
+              _iter_approlers.update_creds.secret_versions.old_versions_handling == 'info'
+
+
+          - name: warn about old secret versions
+            smabot.base.warn:
+              msg: >-
+                {{ "Found '" ~ (_tmp_cur_approle_existing_secrets_lst | length)
+                 ~ "' already existing (old) secret versions above keep"
+                 ~ " threshold for approle '"
+                 ~ _cur_roler.name ~ "', as handling for them was set to"
+                 ~ " only warn about then nothing will be done about them by"
+                 ~ " this pipeline, consider if you really use / need them"
+                 ~ " still, otherwise you should remove them to increase"
+                 ~ " security and reduce potential attack surfaces:\n  -> "
+                 ~ (_tmp_cur_approle_existing_secrets_lst
+                    | map(attribute='secret_meta.creation_time')
+                    | join('\n  -> '))
+                }}
+            when: >-
+              (_tmp_cur_approle_existing_secrets_lst | length) > 0 and
+              _iter_approlers.update_creds.secret_versions.old_versions_handling == 'warn'
+
+
+          - ansible.builtin.debug:
+              msg: >-
+                {{ "Found '" ~ (_tmp_cur_approle_existing_secrets_lst | length)
+                 ~ "' already existing (old) secret versions above keep"
+                 ~ " threshold for approle '"
+                 ~ _cur_roler.name ~ "', the will all be removed later"
+                 ~ " after a new secret was succesfully created:\n  -> "
+                 ~ (_tmp_cur_approle_existing_secrets_lst
+                    | map(attribute='secret_meta.creation_time')
+                    | join('\n  -> '))
+                }}
+            when: >-
+              (_tmp_cur_approle_existing_secrets_lst | length) > 0 and
+              _iter_approlers.update_creds.secret_versions.old_versions_handling == 'delete'
+
+        when: >-
+          _iter_approlers.update_creds.secret_versions.keep > 0
+
+
+      - block:
+
+            ## note: let caller decide if he wants to have an
+            ##   always changed or always unchanged here
+          - name: create new approle secret
+            terryhowe.hashivault.hashivault_approle_role_secret:
+              name: "{{ _cur_roler.name }}"
+              mount_point: "{{ _cur_roler.mount_point }}"
+              state: present
+            register: _approle_id_secret_v1
+            when: >-
+              _iter_approlers.update_creds.auto_cycling.show_as_changed
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+          - name: create new approle secret
+            terryhowe.hashivault.hashivault_approle_role_secret:
+              name: "{{ _cur_roler.name }}"
+              mount_point: "{{ _cur_roler.mount_point }}"
+              state: present
+            register: _approle_id_secret_v2
+            changed_when: False
+            when: >-
+              not _iter_approlers.update_creds.auto_cycling.show_as_changed
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+          - set_fact:
+              _approle_creds: >-
+                 {{ _approle_creds | combine({_cur_roler.name: {
+                       'id': _approle_id.id,
+                       'secret': (_approle_id_secret_v1.data.secret_id
+                          | default(_approle_id_secret_v2.data.secret_id, True)
+                       ),
+                       'login_mount': _cur_roler.mount_point,
+                    }})
+                 }}
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+
+          - name: check if login is possible with new credential set
+            smabot.hashivault.hashivault_login:
+              authtype: approle
+              login_mount_point: "{{ _approle_creds[_cur_roler.name].login_mount }}"
+              role_id: "{{ _approle_creds[_cur_roler.name].id }}"
+              secret_id: "{{ _approle_creds[_cur_roler.name].secret }}"
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+
+          - set_fact:
+               _vaultman_creds: "{{ _approle_creds.get(_cur_roler.name) }}"
+            when: _iter_approlers.vault_manager
+            no_log: >-
+              {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+
+
+          - set_fact:
+              _smabot_hashivault_upd_creds_mode: write
+
+          - name: optionally write updated credentials to configured backend sinks
+            include_tasks: "cred_update_methods/main.yml"
+            loop: >-
+              {{ _iter_approlers.update_creds.sinks | dict2items()
+               | map(attribute='value') }}
+            loop_control:
+              loop_var: _iter_upd_creds
+              label: >-
+                {{ _iter_upd_creds.method }}
+
+        when: _tmp_secret_update
+
+
+      - name: optionally invalidate all old and still active secrets
+        include_tasks: "handle_approlers_old_secrets/invalidate.yml"
+        loop: "{{ _tmp_cur_approle_existing_secrets_lst }}"
         loop_control:
-          loop_var: _iter_upd_creds
+          loop_var: _iter_approle_old_secrets
+          label: "{{ _iter_approle_old_secrets.secret_meta.creation_time }}"
 
-
-      - name: invalidate old approle secret
-        terryhowe.hashivault.hashivault_approle_role_secret:
-          name: "{{ _cur_roler.name }}"
-          mount_point: "{{ _cur_roler.mount_point }}"
-          secret: "{{ _smabot_hashivault_old_secret }}"
-          state: absent
-        no_log: "{{ not (disable_secret_log_hiding | default(false, True)) }}"
-        changed_when: False  # this is an ever-changed while we prefer in such cases a never-changed
-        when: _smabot_hashivault_old_secret
+      ## deprecated, replaced by better include_tasks above
+      ##- name: invalidate old approle secret
+      ##  terryhowe.hashivault.hashivault_approle_role_secret:
+      ##    name: "{{ _cur_roler.name }}"
+      ##    mount_point: "{{ _cur_roler.mount_point }}"
+      ##    secret: "{{ _smabot_hashivault_old_secret }}"
+      ##    state: absent
+      ##  no_log: >-
+      ##    {{ smabot_hashivault_config_instance_args_normed.hide_secrets }}
+      ##  changed_when: False  # this is an ever-changed while we prefer in such cases a never-changed
+      ##  when: _smabot_hashivault_old_secret
 
     when: >-
       _iter_approlers.update_creds.sinks is truthy

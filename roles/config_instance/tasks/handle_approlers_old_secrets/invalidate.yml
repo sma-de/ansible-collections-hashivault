@@ -1,0 +1,9 @@
+---
+
+  - name: invalidate old approle secret
+    smabot.hashivault.hashivault_approle_role_secret_accessor_destroy:
+      name: "{{ _cur_roler.name }}"
+      mount_point: "{{ _cur_roler.mount_point }}"
+      accessor: >-
+        {{ _iter_approle_old_secrets.secret_meta.secret_id_accessor }}
+

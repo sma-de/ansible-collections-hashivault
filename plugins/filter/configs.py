@@ -151,7 +151,7 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
 
         secret_cfgs = {}
 
-        for k,v in upload_creds['creds'].items():
+        for k, v in upload_creds['creds'].items():
             if readmode and k != 'secret':
                 # we only need to read the actual secret, nothing else
                 continue
@@ -170,7 +170,7 @@ class ConvertUpdateCredsParamsFilter(FilterBase):
             secret_cfgs[n] = tmp
 
         tmp = {
-          'secrets': secret_cfgs
+          'secrets': secret_cfgs,
         }
 
         if readmode:
