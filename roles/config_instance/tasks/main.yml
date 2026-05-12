@@ -11,7 +11,7 @@
     register: _tmp_normed_cfg
     no_log: >-
        {{ smabot_hashivault_config_instance_args.hide_secrets
-        | default(False) }}
+        | default(True, True) }}
 
   - set_fact:
       smabot_hashivault_config_instance_args_normed: "{{ _tmp_normed_cfg.normalized }}"
